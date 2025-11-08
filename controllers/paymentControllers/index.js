@@ -20,8 +20,14 @@ export const initilisePayment =async (req, res) => {
     if(user?.id !== orderPayload?.p_user_id) {
       return res.status(403).json({ error: 'User is not authorized to initiate this order.' });
     }
-    if (!amount || amount < 49) {
-      return res.status(400).json({ error: 'Amount is required and must be at least ₹49.' });
+    // ✅ Check item total before fees/wallet
+    const itemTotal = Number(orderPayload?.p_item_total || 0);
+
+    if (itemTotal < 49) {
+      return res.status(400).json({
+        error: 'Minimum order value must be ₹49 before applying wallet or delivery fees.',
+        item_total: itemTotal, // 👈 include in error response too
+      });
     }
 
     const receipt = `rcpt_${crypto.randomBytes(12).toString('hex')}`;
