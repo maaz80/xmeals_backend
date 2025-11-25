@@ -80,6 +80,7 @@ export const updateWalletBalance = async (req, res) => {
     //     return res.status(400).json({ message: "Order is already cancelled" });
     //   }
     // }
+    
 
     if (review) {
       const { data, error } = await supabase
