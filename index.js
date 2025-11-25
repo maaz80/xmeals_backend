@@ -5,9 +5,13 @@ import cors from "cors";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import googleMapsRoutes from "./routes/googleMapsRoutes.js";
 import walletRoutes from "./routes/walletRoutes.js";
+import razorpayWebhookRoute from "./routes/razorpayWebhookRoute.js";
+// Disable bodyParser ONLY for Razorpay Webhook
 
 dotenv.config();
 const app = express();
+app.use("/api/razorpay/webhook", express.raw({ type: "application/json" }));
+app.use("/api/razorpay", razorpayWebhookRoute);
 app.use(bodyParser.json());
 
 const allowedOrigins = process.env.ORIGIN?.split(",").map(origin => origin.trim());
