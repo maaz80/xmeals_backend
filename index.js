@@ -10,7 +10,6 @@ import razorpayWebhookRoute from "./routes/razorpayWebhookRoute.js";
 
 dotenv.config();
 const app = express();
-app.use("/api/razorpay/webhook", express.raw({ type: "application/json" }));
 app.use("/api/razorpay", razorpayWebhookRoute);
 app.use(bodyParser.json());
 
