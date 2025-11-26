@@ -13,7 +13,11 @@ export const razorpayWebhook = (req, res) => {
 
      const event = req.body.event;
      console.log("🔥 Webhook HIT hua at:", new Date().toISOString());
-     console.log("🔥 RAW BODY:", req.body)
+     console.log("✅ Signature Verified");
+
+     const data = JSON.parse(req.body.toString());
+
+     console.log("EVENT:", data.event);
      console.log("🔥 HEADERS:", req.headers);
 
      switch (event) {
