@@ -10,11 +10,7 @@ import razorpayWebhookRoute from "./routes/razorpayWebhookRoute.js";
 
 dotenv.config();
 const app = express();
-app.use("/api/razorpay", razorpayWebhookRoute);
-app.use(bodyParser.json());
-
 const allowedOrigins = process.env.ORIGIN?.split(",").map(origin => origin.trim());
-
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -29,6 +25,10 @@ app.use(
     credentials: true,
   })
 );
+app.use("/api/razorpay", razorpayWebhookRoute);
+app.use(bodyParser.json());
+
+
 
 app.use('/api', paymentRoutes);
 app.use('/', googleMapsRoutes);
