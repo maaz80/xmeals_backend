@@ -28,8 +28,6 @@ app.use(
 app.use("/api/razorpay", razorpayWebhookRoute);
 app.use(bodyParser.json());
 
-
-
 app.use('/api', paymentRoutes);
 app.use('/', googleMapsRoutes);
 app.use('/api', walletRoutes);
