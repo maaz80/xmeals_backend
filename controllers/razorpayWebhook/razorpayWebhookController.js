@@ -72,28 +72,28 @@ export const razorpayWebhook = async (req, res) => {
                          break;
                     }
 
-                    case "payment.authorized": {
-                         const payment = data.payload.payment.entity;
-                         const paymentId = payment.id;
-                         const orderId = payment.order_id;
+                    // case "payment.authorized": {
+                    //      const payment = data.payload.payment.entity;
+                    //      const paymentId = payment.id;
+                    //      const orderId = payment.order_id;
 
-                         console.log("⚠️ Payment Authorized:", paymentId, "Order:", orderId);
+                    //      console.log("⚠️ Payment Authorized:", paymentId, "Order:", orderId);
 
-                         const { error } = await supabase.rpc(
-                              "razorpay_transaction_record_rpc",
-                              {
-                                   p_order_id: orderId,
-                                   p_transaction_id: paymentId,
-                                   p_order_status: "payment.authorized",
-                              }
-                         );
+                    //      const { error } = await supabase.rpc(
+                    //           "razorpay_transaction_record_rpc",
+                    //           {
+                    //                p_order_id: orderId,
+                    //                p_transaction_id: paymentId,
+                    //                p_order_status: "payment.authorized",
+                    //           }
+                    //      );
 
-                         if (error) {
-                              console.error("RPC error (authorized):", error);
-                         }
+                    //      if (error) {
+                    //           console.error("RPC error (authorized):", error);
+                    //      }
 
-                         break;
-                    }
+                    //      break;
+                    // }
 
                     case "order.paid": {
                          const order = data.payload.order.entity;
