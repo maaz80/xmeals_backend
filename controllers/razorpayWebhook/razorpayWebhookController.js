@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { supabase } from "../../config/supbase";
+import { supabase } from "../../config/supbase.js";
 
 export const razorpayWebhook = async (req, res) => {
      try {
