@@ -26,9 +26,13 @@ export const razorpayWebhook = (req, res) => {
      console.log("EVENT:", event);
 
      switch (event) {
-          case "payment.captured":
-               console.log("💚 Payment Captured:", data.payload.payment.entity.id);
+          case "payment.captured": {
+               const payment = data.payload.payment.entity;
+               const paymentId = payment.id;
+               const orderId = payment.order_id;  
+               console.log("Payment Captured:", paymentId, "Order:", orderId);
                break;
+          }
 
           case "payment.failed":
                console.log("❌ Payment Failed:", data.payload.payment.entity.id);
@@ -38,10 +42,14 @@ export const razorpayWebhook = (req, res) => {
                console.log("⚠️ Payment Authorized");
                break;
 
-          case "order.paid":
-               console.log("🟦 Order Paid");
+          case "order.paid": {
+               const order = data.payload.order.entity;
+               const payment = data.payload.payment.entity;
+               const orderId = order.id;
+               const paymentId = payment.id;
+               console.log("Order Paid:", orderId, "Payment:", paymentId);
                break;
-
+          }
           default:
                console.log("🔸 Unhandled Event:", event);
      }
