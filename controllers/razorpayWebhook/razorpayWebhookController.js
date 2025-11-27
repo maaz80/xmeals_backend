@@ -123,7 +123,6 @@ export const razorpayWebhook = async (req, res) => {
                          console.log("🔸 Unhandled Event:", event);
                }
           } catch (innerErr) {
-               // JSON structure / RPC call me koi unexpected crash
                console.error("Inner webhook handler error:", innerErr);
           }
 
