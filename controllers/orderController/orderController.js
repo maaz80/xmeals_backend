@@ -76,9 +76,7 @@ export const onOrderCreated = async (req, res) => {
           // 6️⃣ Send WhatsApp Message with Button
           const toNumber = vendor.mobile_number.replace(/\D/g, ""); // sirf digits rakhenga
           const whatsappRes = await sendWhatsappButton(
-               toNumber, 
-               messageText,
-               `ACCEPT_ORDER:${order_id}`
+               toNumber
           );
 
           console.log("WhatsApp API Response =>", whatsappRes);
@@ -92,27 +90,16 @@ export const onOrderCreated = async (req, res) => {
 };
 
 // 📌 Send Template / Button Message
-async function sendWhatsappButton(to, bodyText, payload) {
+async function sendWhatsappButton(to) {
      const url = `https://graph.facebook.com/v18.0/${process.env.WHATSAPP_PHONE_ID}/messages`;
 
      const jsonBody = {
           messaging_product: "whatsapp",
           to,
-          type: "interactive",
-          interactive: {
-               type: "button",
-               body: { text: bodyText },
-               action: {
-                    buttons: [
-                         {
-                              type: "reply",
-                              reply: {
-                                   id: payload,
-                                   title: "ACCEPT"
-                              }
-                         }
-                    ]
-               }
+          type: "template",
+          template: {
+               name: "hello_world",          // dashboard wala approved template name
+               language: { code: "en_US" }
           }
      };
 
@@ -127,3 +114,4 @@ async function sendWhatsappButton(to, bodyText, payload) {
 
      return res.json();
 }
+
