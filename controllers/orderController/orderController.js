@@ -74,8 +74,9 @@ export const onOrderCreated = async (req, res) => {
 
 
           // 6️⃣ Send WhatsApp Message with Button
+          const toNumber = vendor.mobile_number.replace(/\D/g, ""); // sirf digits rakhenga
           const whatsappRes = await sendWhatsappButton(
-               vendor.mobile_number,
+               toNumber, 
                messageText,
                `ACCEPT_ORDER:${order_id}`
           );
