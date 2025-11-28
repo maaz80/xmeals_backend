@@ -2,6 +2,8 @@ import { supabase } from "../../config/supbase.js";
 
 // 📌 For webhook verification (GET)
 export const verifyWebhook = (req, res) => {
+     console.log('query:', req.query);
+     console.log('env token:', process.env.WHATSAPP_VERIFY_TOKEN);
      const mode = req.query["hub.mode"];
      const challenge = req.query["hub.challenge"];
      const token = req.query["hub.verify_token"];

@@ -38,18 +38,32 @@ export const onOrderCreated = async (req, res) => {
           if (userErr) throw userErr;
 
           // 4️⃣ Fetch Items (order_items)
-          const { data: items, error: itemsErr } = await supabase
+          // 4️⃣ Fetch Items (order_item)
+          const { data: orderItems, error: itemsErr } = await supabase
                .from("order_item")
-               .select("*")
+               .select("item_id, quantity, final_price")
                .eq("order_id", order_id);
 
           if (itemsErr) throw itemsErr;
 
+          // 4.1️⃣ Get all item_ids
+          const itemIds = orderItems.map(i => i.item_id);
+
+          // 4.2️⃣ Fetch item details from item table
+          const { data: items, error: itemsDetailErr } = await supabase
+               .from("item")
+               .select("item_id, item_name")   // yaha tumhare columns ka exact naam
+               .in("item_id", itemIds);
+
+          if (itemsDetailErr) throw itemsDetailErr;
+
           // 5️⃣ Format items for WhatsApp
           let itemList = "";
-          items.forEach((item, idx) => {
-               itemList += `${idx + 1}. ${item.item_name} x ${item.quantity} = ₹${item.total_price}\n`;
+          orderItems.forEach((oi, idx) => {
+               const item = items.find(it => it.item_id === oi.item_id);
+               itemList += `${idx + 1}. ${item?.item_name || "Item"} x ${oi.quantity} = ₹${oi.total_price}\n`;
           });
+
 
           const messageText = `🍽 *New Order Received!*\n\n` +
                `*Order ID:* ${order_id}\n` +
@@ -61,7 +75,7 @@ export const onOrderCreated = async (req, res) => {
 
           // 6️⃣ Send WhatsApp Message with Button
           const whatsappRes = await sendWhatsappButton(
-               vendor.vendor_whatsapp_number,
+               vendor.mobile_number,
                messageText,
                `ACCEPT_ORDER:${order_id}`
           );
