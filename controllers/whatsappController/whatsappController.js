@@ -1,4 +1,4 @@
-import { supabase } from "../../config/supbase";
+import { supabase } from "../../config/supbase.js";
 
 // 📌 For webhook verification (GET)
 export const verifyWebhook = (req, res) => {

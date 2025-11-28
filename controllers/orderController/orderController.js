@@ -1,5 +1,5 @@
 import fetch from "node-fetch";
-import { supabase } from "../../config/supbase";
+import { supabase } from "../../config/supbase.js";
 
 // 📌 Trigger → Backend
 export const onOrderCreated = async (req, res) => {
