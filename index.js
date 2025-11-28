@@ -6,6 +6,8 @@ import paymentRoutes from "./routes/paymentRoutes.js";
 import googleMapsRoutes from "./routes/googleMapsRoutes.js";
 import walletRoutes from "./routes/walletRoutes.js";
 import razorpayWebhookRoute from "./routes/razorpayWebhookRoute.js";
+import orderRoutes from './routes/orderRoutes.js'
+import whatsappRoutes from './routes/whatsappRoutes.js'
 // Disable bodyParser ONLY for Razorpay Webhook
 
 dotenv.config();
@@ -27,7 +29,8 @@ app.use(
 );
 app.use("/api/razorpay", razorpayWebhookRoute);
 app.use(bodyParser.json());
-
+app.use("/webhook", orderRoutes);      // /webhook/order-created
+app.use("/webhook", whatsappRoutes);   // /webhook/whatsapp
 app.use('/api', paymentRoutes);
 app.use('/', googleMapsRoutes);
 app.use('/api', walletRoutes);
