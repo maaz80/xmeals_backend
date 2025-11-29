@@ -34,22 +34,31 @@ export const whatsappWebhook = async (req, res) => {
                     // ✅ Vendor ne order accept kiya
                     const { error } = await supabase
                          .from("orders")
-                         .update({
-                              status: "accepted",
-                              accepted_ts: new Date(),
-                         })
+                         .update({ status: "accepted", accepted_ts: new Date() })
                          .eq("order_id", order_id);
+
                     if (error) throw error;
+
+                    // ✅ CONFIRMATION MESSAGE
+                    await sendTextMessage({
+                         to: message.from,
+                         text: `✅ Order ${order_id} accepted successfully!`
+                    });
+
                } else if (action === "START_PREPARING") {
                     // ✅ Vendor ne Start Preparing dabaya
                     const { error } = await supabase
                          .from("orders")
-                         .update({
-                              status: "preparing",
-                              preparing_ts: new Date(),
-                         })
+                         .update({ status: "preparing", preparing_ts: new Date() })
                          .eq("order_id", order_id);
+
                     if (error) throw error;
+
+                    // ✅ CONFIRMATION MESSAGE
+                    await sendTextMessage({
+                         to: message.from,
+                         text: `✅ Started preparing order ${order_id}`
+                    });
 
                     const { order, vendor, user, itemsText } = await getFullOrderDetails(order_id);
                     const to = vendor.mobile_number.replace(/\D/g, "");
@@ -70,12 +79,16 @@ export const whatsappWebhook = async (req, res) => {
                     // ✅ Vendor ne Prepared button dabaya
                     const { error } = await supabase
                          .from("orders")
-                         .update({
-                              status: "prepared",
-                              prepared_ts: new Date(),
-                         })
+                         .update({ status: "prepared", prepared_ts: new Date() })
                          .eq("order_id", order_id);
+
                     if (error) throw error;
+
+                    // ✅ CONFIRMATION MESSAGE
+                    await sendTextMessage({
+                         to: message.from,
+                         text: `✅ Order ${order_id} marked as prepared!`
+                    });
 
                     const { order, vendor, user, itemsText } = await getFullOrderDetails(order_id);
                     const to = vendor.mobile_number.replace(/\D/g, "");
@@ -144,7 +157,7 @@ export const whatsappWebhook = async (req, res) => {
 
                // ✅ Existing dp_otp se match karo
                if (parseInt(enteredOtp) === parseInt(pendingOrder.dp_otp)) {
-                    
+
                     // Tumhara existing RPC call
                     const { error: rpcErr } = await supabase
                          .from("orders")
