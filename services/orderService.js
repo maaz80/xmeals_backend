@@ -1,5 +1,5 @@
 // services/orderService.js
-import { supabase } from "../config/supbase";
+import { supabase } from "../config/supbase.js";
 
 export async function getFullOrderDetails(order_id) {
      // Order
