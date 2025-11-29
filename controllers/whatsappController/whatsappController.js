@@ -1,6 +1,6 @@
 // whatsappController.js
 import { supabase } from "../../config/supbase.js";
-import { getFullOrderDetails } from "../../services/orderService.js";
+import { assertVendorAuthorized, getFullOrderDetails, isMessageExpired } from "../../services/orderService.js";
 import { sendWhatsappTemplate, sendTextMessage } from "../orderController/orderController.js";
 
 // 📌 GET: Webhook verification
@@ -23,12 +23,37 @@ export const whatsappWebhook = async (req, res) => {
 
           if (!message) return res.sendStatus(200);
 
+          // 1️⃣ Time window check (5 min)
+          if (isMessageExpired(message, 1)) {
+               await sendTextMessage({
+                    to: message.from,
+                    text: "⏰ This action has expired. Please use the latest WhatsApp message.",
+               });
+               return res.sendStatus(200);
+          }
+
           // 1️⃣ Button replies
           if (message.type === "interactive" && message.interactive?.button_reply) {
                const buttonReply = message.interactive.button_reply;
                const payload = buttonReply.id;
                const [action, order_id] = payload.split(":");
                if (!order_id) return res.sendStatus(200);
+
+               const waId = message.from;
+
+               // 🔐 Vendor auth check for all actions
+               const allowed = await assertVendorAuthorized(order_id, waId);
+               if (!allowed) {
+                    console.log("Unauthorized WhatsApp user for order", order_id, waId);
+
+                    await sendTextMessage({
+                         to: waId,
+                         text: "❌ You are not authorized to manage this order. Please contact support or use your registered WhatsApp number.",
+                    });
+
+                    return res.sendStatus(403);
+               }
+
 
                if (action === "ACCEPT_ORDER") {
                     // ✅ Vendor ne order accept kiya
@@ -153,6 +178,18 @@ export const whatsappWebhook = async (req, res) => {
 
                if (orderErr || !pendingOrder) {
                     return res.sendStatus(200);
+               }
+
+               // 🔐 Yahan bhi vendor auth check (same helper)
+               const allowed = await assertVendorAuthorized(pendingOrder.order_id, waId);
+               if (!allowed) {
+                    console.log("Unauthorized WhatsApp user for OTP", pendingOrder.order_id, waId);
+                    await sendTextMessage({
+                         to: waId,
+                         text: "❌ You are not authorized to manage this order. Please contact support or use your registered WhatsApp number.",
+                    });
+
+                    return res.sendStatus(403);
                }
 
                // ✅ Existing dp_otp se match karo

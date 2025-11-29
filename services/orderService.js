@@ -51,3 +51,49 @@ export async function getFullOrderDetails(order_id) {
 
      return { order, vendor, user, orderItems, items, itemsText };
 }
+
+/**
+ * ✅ Check: kya ye WhatsApp number iss order ke vendor ka hai?
+ * @param {string} order_id
+ * @param {string} waId  - message.from (e.g. "9198xxxxxxx")
+ * @returns {boolean}
+ */
+/**
+ * @returns {Promise<boolean>}
+ */
+export async function assertVendorAuthorized(order_id, waId) {
+     // async function ALWAYS returns Promise<boolean>
+     const { data: order, error: orderErr } = await supabase
+          .from("orders")
+          .select("v_id")
+          .eq("order_id", order_id)
+          .single();
+
+     if (orderErr || !order) return false;
+
+     const { data: vendor, error: vendorErr } = await supabase
+          .from("vendor_request")
+          .select("mobile_number, status")
+          .eq("v_id", order.v_id)
+          .single();
+
+     if (vendorErr || !vendor) return false;
+
+     if (vendor.status === "blocked") return false;
+
+     const vendorWa = vendor.mobile_number.replace(/\D/g, "");
+     return vendorWa === waId;        // ← boolean
+}
+
+/**
+ * ✅ Check: kya WhatsApp message expire ho chuka (e.g. 5 min se purana)?
+ * @param {object} message - webhook ka message object
+ * @param {number} minutes - allowed window
+ * @returns {boolean}
+ */
+export function isMessageExpired(message, minutes = 5) {
+     const tsMs = Number(message.timestamp || 0) * 1000;
+     if (!tsMs) return true;
+     const diff = Date.now() - tsMs;
+     return diff > minutes * 60 * 1000;
+}
