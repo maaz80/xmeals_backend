@@ -8,6 +8,7 @@ import walletRoutes from "./routes/walletRoutes.js";
 import razorpayWebhookRoute from "./routes/razorpayWebhookRoute.js";
 import orderRoutes from './routes/orderRoutes.js'
 import whatsappRoutes from './routes/whatsappRoutes.js'
+import './controllers/orderController/orderTimeWorker.js'
 // Disable bodyParser ONLY for Razorpay Webhook
 
 dotenv.config();
