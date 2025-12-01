@@ -189,7 +189,7 @@ export const whatsappWebhook = async (req, res) => {
                if (orderErr || !pendingOrder) {
                     return res.sendStatus(200);
                }
-               const { order} = await getFullOrderDetails(order_id);
+               const { order } = await getFullOrderDetails(pendingOrder.order_id);
                const displayOrderId = String(order.user_order_id || "");
                // 🔐 Yahan bhi vendor auth check (same helper)
                const allowed = await assertVendorAuthorized(pendingOrder.order_id, waId);
