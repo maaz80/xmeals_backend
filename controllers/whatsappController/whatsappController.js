@@ -25,13 +25,13 @@ export const whatsappWebhook = async (req, res) => {
           if (!message) return res.sendStatus(200);
 
           // 1️⃣ Time window check (5 min)
-          if (isMessageExpired(message, 5)) {
-               await sendTextMessage({
-                    to: message.from,
-                    text: "⏰ This action has expired. Please use the latest WhatsApp message.",
-               });
-               return res.sendStatus(200);
-          }
+          // if (isMessageExpired(message, 5)) {
+          //      await sendTextMessage({
+          //           to: message.from,
+          //           text: "⏰ This action has expired. Please use the latest WhatsApp message.",
+          //      });
+          //      return res.sendStatus(200);
+          // }
 
           // 1️⃣ Button replies
           if (message.type === "button" && message.button?.payload) {
@@ -180,16 +180,16 @@ export const whatsappWebhook = async (req, res) => {
                }
 
                // 🔐 Yahan bhi vendor auth check (same helper)
-               const allowed = await assertVendorAuthorized(pendingOrder.order_id, waId);
-               if (!allowed) {
-                    console.log("Unauthorized WhatsApp user for OTP", pendingOrder.order_id, waId);
-                    await sendTextMessage({
-                         to: waId,
-                         text: "❌ You are not authorized to manage this order. Please contact support or use your registered WhatsApp number.",
-                    });
+               // const allowed = await assertVendorAuthorized(pendingOrder.order_id, waId);
+               // if (!allowed) {
+               //      console.log("Unauthorized WhatsApp user for OTP", pendingOrder.order_id, waId);
+               //      await sendTextMessage({
+               //           to: waId,
+               //           text: "❌ You are not authorized to manage this order. Please contact support or use your registered WhatsApp number.",
+               //      });
 
-                    return res.sendStatus(403);
-               }
+               //      return res.sendStatus(403);
+               // }
 
                // ✅ Existing dp_otp se match karo
                if (parseInt(enteredOtp) === parseInt(pendingOrder.dp_otp)) {
