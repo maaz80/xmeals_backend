@@ -1,6 +1,6 @@
 // orderController.js
 import fetch from "node-fetch";
-import { getFullOrderDetails } from "../../services/orderService.js";
+import { calculateFinalAmount, getFullOrderDetails } from "../../services/orderService.js";
 
 // ✅ Common helper: WhatsApp template send
 export async function sendWhatsappTemplate({
@@ -95,13 +95,14 @@ export const onOrderCreated = async (req, res) => {
 
           const toNumber = vendor.mobile_number.replace(/\D/g, "");
 
+          const { final_amount } = calculateFinalAmount(order);
           // 6️⃣ Send "Accept Order" template
           const whatsappRes = await sendWhatsappTemplate({
                to: toNumber,
                templateName: "order_status", // <-- template name
                bodyParams: [
                     { type: "text", text: order_id },                 // {{1}} Order ID
-                    { type: "text", text: String(order.total_amount) }, // {{2}} Amount
+                    { type: "text", text: String(final_amount) }, // {{2}} Amount
                     { type: "text", text: user.name },                // {{3}} Customer
                     { type: "text", text: itemsText },                // {{4}} Items list
                ],

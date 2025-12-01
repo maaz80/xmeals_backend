@@ -97,3 +97,19 @@ export function isMessageExpired(message, minutes = 5) {
      const diff = Date.now() - tsMs;
      return diff > minutes * 60 * 1000;
 }
+
+export function calculateFinalAmount(order) {
+     const items = order?.order_item || [];
+     const vendor_discount = order?.vendor_discount || 0;
+
+     const total_item_price = items.reduce(
+          (sum, item) =>
+               sum + (item?.item_real_price || 0) * (item?.quantity || 1),
+          0
+     );
+
+     const discounted_amount = (total_item_price * (100 - vendor_discount)) / 100;
+     const final_amount = discounted_amount || 0;
+
+     return { total_item_price, vendor_discount, final_amount };
+}

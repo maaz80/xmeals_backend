@@ -1,6 +1,6 @@
 // whatsappController.js
 import { supabase } from "../../config/supbase.js";
-import { assertVendorAuthorized, getFullOrderDetails, isMessageExpired } from "../../services/orderService.js";
+import { assertVendorAuthorized, calculateFinalAmount, getFullOrderDetails, isMessageExpired } from "../../services/orderService.js";
 import { sendWhatsappTemplate, sendTextMessage } from "../orderController/orderController.js";
 
 // 📌 GET: Webhook verification
@@ -34,42 +34,39 @@ export const whatsappWebhook = async (req, res) => {
           }
 
           // 1️⃣ Button replies
-          if (message.type === "interactive" && message.interactive?.button_reply) {
-               const buttonReply = message.interactive.button_reply;
-               const payload = buttonReply.id;
+          if (message.type === "button" && message.button?.payload) {
+               const payload = message.button.payload;
                const [action, order_id] = payload.split(":");
                if (!order_id) return res.sendStatus(200);
 
                const waId = message.from;
 
-               // 🔐 Vendor auth check for all actions
                const allowed = await assertVendorAuthorized(order_id, waId);
                if (!allowed) {
                     console.log("Unauthorized WhatsApp user for order", order_id, waId);
-
                     await sendTextMessage({
                          to: waId,
                          text: "❌ You are not authorized to manage this order. Please contact support or use your registered WhatsApp number.",
                     });
-
                     return res.sendStatus(403);
                }
 
-
                if (action === "ACCEPT_ORDER") {
-                    // ✅ Vendor ne order accept kiya
                     const { error } = await supabase
                          .from("orders")
                          .update({ status: "accepted", accepted_ts: new Date() })
                          .eq("order_id", order_id);
 
-                    if (error) throw error;
+                    if (error) {
+                         console.error("ACCEPT_ORDER update error:", error);
+                         throw error;
+                    }
 
-                    // ✅ CONFIRMATION MESSAGE
                     await sendTextMessage({
                          to: message.from,
                          text: `✅ Order ${order_id} accepted successfully!`
                     });
+               
 
                } else if (action === "START_PREPARING") {
                     // ✅ Vendor ne Start Preparing dabaya
@@ -88,14 +85,14 @@ export const whatsappWebhook = async (req, res) => {
 
                     const { order, vendor, user, itemsText } = await getFullOrderDetails(order_id);
                     const to = vendor.mobile_number.replace(/\D/g, "");
-
+                    const { final_amount } = calculateFinalAmount(order);
                     // Prepared template (jisme Prepared button hai)
                     await sendWhatsappTemplate({
                          to,
                          templateName: "order_prepared",
                          bodyParams: [
                               { type: "text", text: order_id },
-                              { type: "text", text: String(order.total_amount) },
+                              { type: "text", text: String(final_amount) },
                               { type: "text", text: user.name },
                               { type: "text", text: itemsText },
                          ],
@@ -118,14 +115,14 @@ export const whatsappWebhook = async (req, res) => {
 
                     const { order, vendor, user, itemsText } = await getFullOrderDetails(order_id);
                     const to = vendor.mobile_number.replace(/\D/g, "");
-
+                    const { final_amount } = calculateFinalAmount(order);
                     // Hand Over template (button: Hand Over to DP)
                     await sendWhatsappTemplate({
                          to,
                          templateName: "order_hand_over",
                          bodyParams: [
                               { type: "text", text: order_id },
-                              { type: "text", text: String(order.total_amount) },
+                              { type: "text", text: String(final_amount) },
                               { type: "text", text: user.name },
                               { type: "text", text: itemsText },
                          ],
