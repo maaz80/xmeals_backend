@@ -24,24 +24,26 @@ export const whatsappWebhook = async (req, res) => {
 
           if (!message) return res.sendStatus(200);
 
-          // 1️⃣ Time window check (5 min)
-          if (isMessageExpired(message, 5)) {
-               await sendTextMessage({
-                    to: message.from,
-                    text: "⏰ This action has expired. Please use the latest WhatsApp message.",
-               });
-               return res.sendStatus(200);
-          }
-
           // 1️⃣ Button replies
           if (message.type === "button" && message.button?.payload) {
                const payload = message.button.payload;
                const [action, order_id] = payload.split(":");
                if (!order_id) return res.sendStatus(200);
-               const { order} = await getFullOrderDetails(order_id);
 
                // Display ID 
+               const { order } = await getFullOrderDetails(order_id);
                const displayOrderId = String(order.user_order_id || "");
+
+               if (action === "ACCEPT_ORDER" || action === "START_PREPARING") {
+                    if (isMessageExpired(message, 5)) {
+                         await sendTextMessage({
+                              to: message.from,
+                              text: `⏰ Time limit exceeded for order ${displayOrderId}. Please use the latest WhatsApp message.`,
+                         });
+                         return res.sendStatus(200);
+                    }
+               }
+              
                const waId = message.from;
 
                const allowed = await assertVendorAuthorized(order_id, waId);
