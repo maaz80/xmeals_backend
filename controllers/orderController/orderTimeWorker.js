@@ -58,14 +58,14 @@ cron.schedule("*/1 * * * *", async () => {
           const { order, vendor, user, itemsText } =  await getFullOrderDetails(order_id);
 
           const to = vendor.mobile_number.replace(/\D/g, "");
-
+const { final_amount } = calculateFinalAmount(order);
           // 2️⃣ Start Preparing template
           await sendWhatsappTemplate({
                to,
                templateName: "order_preparing", // WhatsApp template name
                bodyParams: [
                     { type: "text", text: order.order_id },             // {{1}}
-                    { type: "text", text: String(order.total_amount) }, // {{2}}
+                    { type: "text", text: String(final_amount) }, // {{2}}
                     { type: "text", text: user.name },                  // {{3}}
                     { type: "text", text: itemsText },                  // {{4}}
                ],

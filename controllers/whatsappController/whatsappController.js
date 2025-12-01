@@ -25,7 +25,7 @@ export const whatsappWebhook = async (req, res) => {
           if (!message) return res.sendStatus(200);
 
           // 1️⃣ Time window check (5 min)
-          if (isMessageExpired(message, 1)) {
+          if (isMessageExpired(message, 5)) {
                await sendTextMessage({
                     to: message.from,
                     text: "⏰ This action has expired. Please use the latest WhatsApp message.",
@@ -170,6 +170,7 @@ export const whatsappWebhook = async (req, res) => {
                     .from("orders")
                     .select("*")
                     .eq("status", "handover_pending")
+                    .eq("order_id", order_id)
                     .order("updated_at", { ascending: false })
                     .limit(1)
                     .single();
@@ -214,6 +215,8 @@ export const whatsappWebhook = async (req, res) => {
                          });
                     }
                } else {
+                    console.log('OTP MIsmatch' + enteredOtp + pendingOrder.dp_otp);
+                    
                     await sendTextMessage({
                          to: waId,
                          text: `❌ Invalid OTP. Expected: ${pendingOrder.dp_otp}. Try again.`
