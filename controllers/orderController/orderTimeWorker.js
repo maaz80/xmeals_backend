@@ -5,7 +5,7 @@ import { sendWhatsappTemplate } from "./orderController.js";
 import { calculateFinalAmount, getFullOrderDetails } from "../../services/orderService.js";
 
 // har 1 minute me chalega
-cron.schedule("*/1 * * * *", async () => {
+cron.schedule("*/3 * * * *", async () => {
      console.log("[CRON] Checking orders for start-preparing reminder...");
 
      const { data: orders, error } = await supabase
@@ -21,30 +21,28 @@ cron.schedule("*/1 * * * *", async () => {
      const now = new Date();
 
      for (const o of orders) {
-          if (!o.accepted_ts || !o.max_preparation_time) continue;
-
-          // const createdTs = new Date(o.created_ts);
-          // const etaTs = new Date(o.eta);
-          const acceptedTs = new Date(o.accepted_ts);
-
-          // const totalTime = etaTs - createdTs;
-          // const timePassed = now - createdTs;
-          // const remainingTime = etaTs - now;
-          // const travelTimeInMs = Number(o.travel_time || 0) * 60 * 1000;
-
-          // const percentagePassed =
-          //      totalTime > 0 ? (timePassed / totalTime) * 100 : 100;
-
-          const maxPrepMs = Number(o.max_preparation_time || 0) * 60 * 1000;
-          const prepTimePassed =
-               now >= new Date(acceptedTs.getTime() + maxPrepMs);
+          if (!o.accepted_ts) continue; // accepted_ts zaruri
+          if (o.wa_preparing_reminder_sent) continue; 
 
           const dpAssigned = !!o.dp_id;
 
-          // ✅ Same rule + extra: max_preparation_time cross ho chuka ho
+          const createdTs = new Date(o.created_ts);
+          const etaTs = new Date(o.eta);
+          const now = new Date();
+
+          const totalTime = etaTs - createdTs;
+          const timePassed = now - createdTs;
+
+          const percentagePassed =
+               totalTime > 0 ? (timePassed / totalTime) * 100 : 100;
+
+          const travelTimeInMs = Number(o.travel_time || 0) * 60 * 1000;
+          const remainingTime = etaTs - now;
+          const allowDueToTravelTime = remainingTime <= travelTimeInMs;
+
+          // 🔁 SAME CONDITION as frontend
           const allow =
-               dpAssigned ||                // 1️⃣ DP assigned ho gaya
-               (!dpAssigned && prepTimePassed); // 2️⃣ DP nahi hai + max prep cross
+               dpAssigned || percentagePassed >= 65 || allowDueToTravelTime;
 
           if (!allow) continue;
 
@@ -76,7 +74,7 @@ cron.schedule("*/1 * * * *", async () => {
           // 3️⃣ Dobara na bhejne ke liye status change
           await supabase
                .from("orders")
-               .update({ status: "temp_preparing" })
+               .update({ wa_preparing_reminder_sent: true })
                .eq("order_id", order.order_id);
      }
 });

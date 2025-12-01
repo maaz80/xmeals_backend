@@ -157,7 +157,7 @@ export const whatsappWebhook = async (req, res) => {
                     // Status handover_pending karo
                     await supabase
                          .from("orders")
-                         .update({ status: "handover_pending" })
+                         .update({ wa_handover_otp_started: true })
                          .eq("order_id", order_id);
 
                     // Vendor ko OTP mangne wala text bhejo
