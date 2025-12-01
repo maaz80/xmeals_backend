@@ -106,6 +106,11 @@ export const whatsappWebhook = async (req, res) => {
                     });
                } else if (action === "PREPARED") {
                     // ✅ Vendor ne Prepared button dabaya
+                    const { order, vendor, user, itemsText } = await getFullOrderDetails(order_id);
+                    const to = vendor.mobile_number.replace(/\D/g, "");
+                    const { final_amount } = calculateFinalAmount(order);
+                    const displayOrderId = String(order.user_order_id || "");
+
                     const { error } = await supabase
                          .from("orders")
                          .update({ status: "prepared", prepared_ts: new Date() })
@@ -119,10 +124,6 @@ export const whatsappWebhook = async (req, res) => {
                          text: `✅ Order ${displayOrderId} marked as prepared!`
                     });
 
-                    const { order, vendor, user, itemsText } = await getFullOrderDetails(order_id);
-                    const to = vendor.mobile_number.replace(/\D/g, "");
-                    const { final_amount } = calculateFinalAmount(order);
-                    const displayOrderId = String(order.user_order_id || "");
                     // Hand Over template (button: Hand Over to DP)
                     await sendWhatsappTemplate({
                          to,
@@ -137,13 +138,16 @@ export const whatsappWebhook = async (req, res) => {
                     });
                } else if (action === "HAND_OVER") {
                     // ✅ HAND_OVER: Existing dp_otp use karo
-                    const { data: order, error: orderErr } = await supabase
+                    const { order} = await getFullOrderDetails(order_id);
+                    const displayOrderId = String(order.user_order_id || "");
+
+                    const { data: orders, error: orderErr } = await supabase
                          .from("orders")
                          .select("dp_otp, v_id")
                          .eq("order_id", order_id)
                          .single();
 
-                    if (orderErr || !order || !order.dp_otp) {
+                    if (orderErr || !orders || !orders.dp_otp) {
                          console.error("Order or DP OTP not found:", orderErr);
                          return res.status(400).json({ error: "DP OTP not available" });
                     }
