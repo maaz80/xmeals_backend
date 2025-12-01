@@ -39,6 +39,8 @@ export const whatsappWebhook = async (req, res) => {
                const [action, order_id] = payload.split(":");
                if (!order_id) return res.sendStatus(200);
                const { order} = await getFullOrderDetails(order_id);
+
+               // Display ID 
                const displayOrderId = String(order.user_order_id || "");
                const waId = message.from;
 
