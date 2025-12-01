@@ -182,8 +182,8 @@ export const whatsappWebhook = async (req, res) => {
                const { data: pendingOrder, error: orderErr } = await supabase
                     .from("orders")
                     .select("*")
-                    .eq("status", "handover_pending")
-                    // .eq("order_id", order_id)
+                    .eq("status", "prepared")
+                    .eq("order_id", pendingOrder.order_id)
                     .order("updated_ts", { ascending: false })
                     .limit(1)
                     .single();
