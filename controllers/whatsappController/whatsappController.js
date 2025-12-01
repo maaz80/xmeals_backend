@@ -170,7 +170,7 @@ export const whatsappWebhook = async (req, res) => {
                     .from("orders")
                     .select("*")
                     .eq("status", "handover_pending")
-                    .eq("order_id", order_id)
+                    // .eq("order_id", order_id)
                     .order("updated_at", { ascending: false })
                     .limit(1)
                     .single();

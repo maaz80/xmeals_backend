@@ -84,7 +84,7 @@ export async function sendTextMessage({ to, text }) {
 // 📌 Trigger → Backend: order create hone par vendor ko Accept template
 export const onOrderCreated = async (req, res) => {
      try {
-          const { order_id, v_id } = req.body;
+          const { order_id, v_id ,user_order_id } = req.body;
 
           if (!order_id || !v_id) {
                return res.status(400).json({ error: "order_id or v_id missing" });
@@ -101,7 +101,7 @@ export const onOrderCreated = async (req, res) => {
                to: toNumber,
                templateName: "order_status", // <-- template name
                bodyParams: [
-                    { type: "text", text: order_id },                 // {{1}} Order ID
+                    { type: "text", text: user_order_id },                 // {{1}} Order ID
                     { type: "text", text: String(final_amount) }, // {{2}} Amount
                     { type: "text", text: user.name },                // {{3}} Customer
                     { type: "text", text: itemsText },                // {{4}} Items list
