@@ -2,10 +2,10 @@
 import cron from "node-cron";
 import { supabase } from "../../config/supbase.js";
 import { sendWhatsappTemplate } from "./orderController.js";
-import { getFullOrderDetails } from "../../services/orderService.js";
+import { calculateFinalAmount, getFullOrderDetails } from "../../services/orderService.js";
 
 // har 1 minute me chalega
-cron.schedule("*/1 * * * *", async () => {
+cron.schedule("*/30 * * * *", async () => {
      console.log("[CRON] Checking orders for start-preparing reminder...");
 
      const { data: orders, error } = await supabase

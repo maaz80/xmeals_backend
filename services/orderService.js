@@ -5,7 +5,12 @@ export async function getFullOrderDetails(order_id) {
      // Order
      const { data: order, error: orderErr } = await supabase
           .from("orders")
-          .select("*")
+          .select(`*,
+      order_item: order_item_order_id_fkey(
+               item_real_price,
+               quantity
+          )
+    `)
           .eq("order_id", order_id)
           .single();
      if (orderErr || !order) throw orderErr || new Error("Order not found");
@@ -108,7 +113,8 @@ export function calculateFinalAmount(order) {
           0
      );
 
-     const discounted_amount = (total_item_price * (100 - vendor_discount)) / 100;
+     const discounted_amount =
+          (total_item_price * (100 - vendor_discount)) / 100;
      const final_amount = discounted_amount || 0;
 
      return { total_item_price, vendor_discount, final_amount };
