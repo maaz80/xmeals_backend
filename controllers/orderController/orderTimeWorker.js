@@ -53,18 +53,21 @@ cron.schedule("*/1 * * * *", async () => {
           console.log("[CRON] Sending start-preparing reminder for", o.order_id);
 
           const order_id = o.order_id;
+          const user_order_id = o.user_order_id
 
           // 1️⃣ Full order details (order, vendor, user, itemsText)
-          const { order, vendor, user, itemsText } =  await getFullOrderDetails(order_id);
+          const { order, vendor, user, itemsText } = await getFullOrderDetails(order_id);
 
           const to = vendor.mobile_number.replace(/\D/g, "");
-const { final_amount } = calculateFinalAmount(order);
+          const { final_amount } = calculateFinalAmount(order);
+          const displayOrderId = String(user_order_id || o.user_order_id || "");
+          
           // 2️⃣ Start Preparing template
           await sendWhatsappTemplate({
                to,
                templateName: "order_preparing", // WhatsApp template name
                bodyParams: [
-                    { type: "text", text: order.order_id },             // {{1}}
+                    { type: "text", text: displayOrderId },             // {{1}}
                     { type: "text", text: String(final_amount) }, // {{2}}
                     { type: "text", text: user.name },                  // {{3}}
                     { type: "text", text: itemsText },                  // {{4}}
