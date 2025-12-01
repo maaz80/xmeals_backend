@@ -96,12 +96,13 @@ export const onOrderCreated = async (req, res) => {
           const toNumber = vendor.mobile_number.replace(/\D/g, "");
 
           const { final_amount } = calculateFinalAmount(order);
+          const displayOrderId = String(user_order_id || order.user_order_id || "");
           // 6️⃣ Send "Accept Order" template
           const whatsappRes = await sendWhatsappTemplate({
                to: toNumber,
                templateName: "order_status", // <-- template name
                bodyParams: [
-                    { type: "text", text: String(user_order_id || "") },   // {{1}} Order ID
+                    { type: "text", text: displayOrderId },   // {{1}} Order ID
                     { type: "text", text: String(final_amount ?? 0) }, // {{2}} Amount
                     { type: "text", text: user.name },                // {{3}} Customer
                     { type: "text", text: itemsText },                // {{4}} Items list
