@@ -23,17 +23,17 @@ cron.schedule("*/1 * * * *", async () => {
      for (const o of orders) {
           if (!o.accepted_ts || !o.max_preparation_time) continue;
 
-          const createdTs = new Date(o.created_ts);
-          const etaTs = new Date(o.eta);
+          // const createdTs = new Date(o.created_ts);
+          // const etaTs = new Date(o.eta);
           const acceptedTs = new Date(o.accepted_ts);
 
-          const totalTime = etaTs - createdTs;
-          const timePassed = now - createdTs;
-          const remainingTime = etaTs - now;
-          const travelTimeInMs = Number(o.travel_time || 0) * 60 * 1000;
+          // const totalTime = etaTs - createdTs;
+          // const timePassed = now - createdTs;
+          // const remainingTime = etaTs - now;
+          // const travelTimeInMs = Number(o.travel_time || 0) * 60 * 1000;
 
-          const percentagePassed =
-               totalTime > 0 ? (timePassed / totalTime) * 100 : 100;
+          // const percentagePassed =
+          //      totalTime > 0 ? (timePassed / totalTime) * 100 : 100;
 
           const maxPrepMs = Number(o.max_preparation_time || 0) * 60 * 1000;
           const prepTimePassed =
@@ -43,10 +43,8 @@ cron.schedule("*/1 * * * *", async () => {
 
           // ✅ Same rule + extra: max_preparation_time cross ho chuka ho
           const allow =
-               prepTimePassed &&
-               (dpAssigned ||
-                    percentagePassed >= 65 ||
-                    remainingTime <= travelTimeInMs);
+               dpAssigned ||                // 1️⃣ DP assigned ho gaya
+               (!dpAssigned && prepTimePassed); // 2️⃣ DP nahi hai + max prep cross
 
           if (!allow) continue;
 
@@ -61,7 +59,7 @@ cron.schedule("*/1 * * * *", async () => {
           const to = vendor.mobile_number.replace(/\D/g, "");
           const { final_amount } = calculateFinalAmount(order);
           const displayOrderId = String(user_order_id || o.user_order_id || "");
-          
+
           // 2️⃣ Start Preparing template
           await sendWhatsappTemplate({
                to,

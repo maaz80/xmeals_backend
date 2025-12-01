@@ -38,12 +38,13 @@ export const whatsappWebhook = async (req, res) => {
                const payload = message.button.payload;
                const [action, order_id] = payload.split(":");
                if (!order_id) return res.sendStatus(200);
-
+               const { order} = await getFullOrderDetails(order_id);
+               const displayOrderId = String(order.user_order_id || "");
                const waId = message.from;
 
                const allowed = await assertVendorAuthorized(order_id, waId);
                if (!allowed) {
-                    console.log("Unauthorized WhatsApp user for order", order_id, waId);
+                    console.log("Unauthorized WhatsApp user for order", displayOrderId, waId);
                     await sendTextMessage({
                          to: waId,
                          text: "❌ You are not authorized to manage this order. Please contact support or use your registered WhatsApp number.",
@@ -64,7 +65,7 @@ export const whatsappWebhook = async (req, res) => {
 
                     await sendTextMessage({
                          to: message.from,
-                         text: `✅ Order ${order_id} accepted successfully!`
+                         text: `✅ Order ${displayOrderId} accepted successfully!`
                     });
                
 
@@ -80,7 +81,7 @@ export const whatsappWebhook = async (req, res) => {
                     // ✅ CONFIRMATION MESSAGE
                     await sendTextMessage({
                          to: message.from,
-                         text: `✅ Started preparing order ${order_id}`
+                         text: `✅ Started preparing order ${displayOrderId}`
                     });
 
                     const { order, vendor, user, itemsText } = await getFullOrderDetails(order_id);
@@ -92,7 +93,7 @@ export const whatsappWebhook = async (req, res) => {
                          to,
                          templateName: "order_prepared",
                          bodyParams: [
-                              { type: "text", text: order_id },
+                              { type: "text", text: displayOrderId },
                               { type: "text", text: String(final_amount) },
                               { type: "text", text: user.name },
                               { type: "text", text: itemsText },
@@ -111,18 +112,19 @@ export const whatsappWebhook = async (req, res) => {
                     // ✅ CONFIRMATION MESSAGE
                     await sendTextMessage({
                          to: message.from,
-                         text: `✅ Order ${order_id} marked as prepared!`
+                         text: `✅ Order ${displayOrderId} marked as prepared!`
                     });
 
                     const { order, vendor, user, itemsText } = await getFullOrderDetails(order_id);
                     const to = vendor.mobile_number.replace(/\D/g, "");
                     const { final_amount } = calculateFinalAmount(order);
+                    const displayOrderId = String(order.user_order_id || "");
                     // Hand Over template (button: Hand Over to DP)
                     await sendWhatsappTemplate({
                          to,
                          templateName: "order_hand_over",
                          bodyParams: [
-                              { type: "text", text: order_id },
+                              { type: "text", text: displayOrderId },
                               { type: "text", text: String(final_amount) },
                               { type: "text", text: user.name },
                               { type: "text", text: itemsText },
@@ -152,10 +154,10 @@ export const whatsappWebhook = async (req, res) => {
                     const waId = message.from;
                     await sendTextMessage({
                          to: waId,
-                         text: `Enter the 6-digit DP OTP to handover order ${order_id}`,
+                         text: `Enter the 6-digit DP OTP to handover order ${displayOrderId}`,
                     });
 
-                    console.log(`OTP verification started for order ${order_id}, expected: ${order.dp_otp}`);
+                    console.log(`OTP verification started for order ${displayOrderId}, expected: ${order.dp_otp}`);
                }
 
                return res.status(200).json({ success: true });
@@ -179,11 +181,12 @@ export const whatsappWebhook = async (req, res) => {
                if (orderErr || !pendingOrder) {
                     return res.sendStatus(200);
                }
-
+               const { order} = await getFullOrderDetails(order_id);
+               const displayOrderId = String(order.user_order_id || "");
                // 🔐 Yahan bhi vendor auth check (same helper)
                const allowed = await assertVendorAuthorized(pendingOrder.order_id, waId);
                if (!allowed) {
-                    console.log("Unauthorized WhatsApp user for OTP", pendingOrder.order_id, waId);
+                    console.log("Unauthorized WhatsApp user for OTP", displayOrderId, waId);
                     await sendTextMessage({
                          to: waId,
                          text: "❌ You are not authorized to manage this order. Please contact support or use your registered WhatsApp number.",
@@ -207,7 +210,7 @@ export const whatsappWebhook = async (req, res) => {
                     if (!rpcErr) {
                          await sendTextMessage({
                               to: waId,
-                              text: `✅ Order ${pendingOrder.order_id} handed over to DP successfully!`
+                              text: `✅ Order ${displayOrderId} handed over to DP successfully!`
                          });
                     } else {
                          await sendTextMessage({
@@ -220,7 +223,7 @@ export const whatsappWebhook = async (req, res) => {
                     
                     await sendTextMessage({
                          to: waId,
-                         text: `❌ Invalid OTP. Expected: ${pendingOrder.dp_otp}. Try again.`
+                         text: `❌ Invalid OTP. Try again.`
                     });
                }
 
