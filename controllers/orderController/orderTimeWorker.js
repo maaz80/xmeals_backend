@@ -5,7 +5,7 @@ import { sendWhatsappTemplate } from "./orderController.js";
 import { calculateFinalAmount, getFullOrderDetails } from "../../services/orderService.js";
 
 // har 1 minute me chalega
-cron.schedule("*/30 * * * *", async () => {
+cron.schedule("*/1 * * * *", async () => {
      console.log("[CRON] Checking orders for start-preparing reminder...");
 
      const { data: orders, error } = await supabase
