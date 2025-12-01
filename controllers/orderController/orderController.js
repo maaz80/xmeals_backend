@@ -101,8 +101,8 @@ export const onOrderCreated = async (req, res) => {
                to: toNumber,
                templateName: "order_status", // <-- template name
                bodyParams: [
-                    { type: "text", text: user_order_id },                 // {{1}} Order ID
-                    { type: "text", text: String(final_amount) }, // {{2}} Amount
+                    { type: "text", text: String(user_order_id || "") },   // {{1}} Order ID
+                    { type: "text", text: String(final_amount ?? 0) }, // {{2}} Amount
                     { type: "text", text: user.name },                // {{3}} Customer
                     { type: "text", text: itemsText },                // {{4}} Items list
                ],
