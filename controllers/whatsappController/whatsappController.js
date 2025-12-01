@@ -18,6 +18,7 @@ export const verifyWebhook = (req, res) => {
 // 📌 POST: WhatsApp webhook (buttons, messages)
 export const whatsappWebhook = async (req, res) => {
      try {
+          console.log("RAW WHATSAPP WEBHOOK:", JSON.stringify(req.body, null, 2));
           const data = req.body;
           const message = data?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
 
