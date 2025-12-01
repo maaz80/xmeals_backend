@@ -73,6 +73,12 @@ export const whatsappWebhook = async (req, res) => {
 
                } else if (action === "START_PREPARING") {
                     // ✅ Vendor ne Start Preparing dabaya
+                    
+                    const { order, vendor, user, itemsText } = await getFullOrderDetails(order_id);
+                    const to = vendor.mobile_number.replace(/\D/g, "");
+                    const { final_amount } = calculateFinalAmount(order);
+                    const displayOrderId = String(order.user_order_id || "");
+
                     const { error } = await supabase
                          .from("orders")
                          .update({ status: "preparing", preparing_ts: new Date() })
@@ -86,10 +92,6 @@ export const whatsappWebhook = async (req, res) => {
                          text: `✅ Started preparing order ${displayOrderId}`
                     });
 
-                    const { order, vendor, user, itemsText } = await getFullOrderDetails(order_id);
-                    const to = vendor.mobile_number.replace(/\D/g, "");
-                    const { final_amount } = calculateFinalAmount(order);
-                    const displayOrderId = String(order.user_order_id || "");
                     // Prepared template (jisme Prepared button hai)
                     await sendWhatsappTemplate({
                          to,
