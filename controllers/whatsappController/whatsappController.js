@@ -187,9 +187,13 @@ export const whatsappWebhook = async (req, res) => {
 
                     if (orderErr || !orders || !orders.dp_otp) {
                          console.error("Order or DP OTP not found:", orderErr);
+                         const waId = message.from;
+                         await sendTextMessage({
+                              to: waId,
+                              text: `❌ Order ${displayOrderId} can't go to hand over state. It is not in prepared state or DP OTP is missing.`,
+                         });
                          return res.status(400).json({ error: "DP OTP not available" });
                     }
-
                     // Status handover_pending karo
                     await supabase
                          .from("orders")
@@ -220,6 +224,7 @@ export const whatsappWebhook = async (req, res) => {
                     .select("*")
                     .eq("status", "prepared")
                     // .eq("order_id", pendingOrder.order_id)
+                    .eq("wa_handover_otp_started", true)
                     .order("updated_ts", { ascending: false })
                     .limit(1)
                     .single();
