@@ -45,9 +45,8 @@ export const whatsappWebhook = async (req, res) => {
                     if (order?.wa_template_sent_ts) {
                          const sentTs = new Date(order.wa_template_sent_ts).getTime();
                          const diffMin = (Date.now() - sentTs) / 60000;
-
+                         const displayOrderId = String(order.user_order_id || "");
                          if (diffMin > 5) {
-                              const displayOrderId = String(order.user_order_id || "");
                               await sendTextMessage({
                                    to: message.from,
                                    text: `⏰ Order ${displayOrderId} massege limit exceeded. `,
