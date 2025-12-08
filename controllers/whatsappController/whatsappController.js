@@ -36,16 +36,16 @@ export const whatsappWebhook = async (req, res) => {
 
                // whatsappController.js में ACCEPT_ORDER से पहले:
                if (action === "ACCEPT_ORDER" || action === "START_PREPARING") {
-                    const { data: order } = await supabase
+                    const { data: orderRow } = await supabase
                          .from("orders")
                          .select("wa_message_created_ts, user_order_id")
                          .eq("order_id", order_id)
                          .single();
 
-                    if (order?.wa_message_created_ts) {
-                         const sentTs = new Date(order.wa_message_created_ts).getTime();
+                    if (orderRow?.wa_message_created_ts) {
+                         const sentTs = new Date(orderRow.wa_message_created_ts).getTime();
                          const diffMin = (Date.now() - sentTs) / 60000;
-                         const displayOrderId = String(order.user_order_id || "");
+                         const displayOrderId = String(orderRow.user_order_id || "");
                          if (diffMin > 5) {
                               await sendTextMessage({
                                    to: message.from,
@@ -71,16 +71,23 @@ export const whatsappWebhook = async (req, res) => {
                }
 
                if (action === "ACCEPT_ORDER") {
-                    const { error } = await supabase
+                    const { data: updated, error } = await supabase
                          .from("orders")
                          .update({ status: "accepted", accepted_ts: new Date() })
-                         .eq("order_id", order_id);
-
+                         .eq("order_id", order_id)
+                         .eq("status", "pending") 
+                         
                     if (error) {
                          console.error("ACCEPT_ORDER update error:", error);
                          throw error;
                     }
-
+                    if (!updated || updated.length === 0) {
+                         await sendTextMessage({
+                              to: message.from,
+                              text: `❌ Order ${displayOrderId} cannot be accepted. It is not in pending state.`,
+                         });
+                         return res.sendStatus(200);
+                    }
                     await sendTextMessage({
                          to: message.from,
                          text: `✅ Order ${displayOrderId} accepted successfully!`
@@ -95,13 +102,20 @@ export const whatsappWebhook = async (req, res) => {
                     const { final_amount } = calculateFinalAmount(order);
                     const displayOrderId = String(order.user_order_id || "");
 
-                    const { error } = await supabase
+                         const { data: updated, error } = await supabase
                          .from("orders")
                          .update({ status: "preparing", preparing_ts: new Date() })
-                         .eq("order_id", order_id);
+                         .eq("order_id", order_id)
+                         .eq("status", "accepted") 
 
                     if (error) throw error;
-
+                    if (!updated || updated.length === 0) {
+                         await sendTextMessage({
+                              to: message.from,
+                              text: `❌ Order ${displayOrderId} can't able to go on preparing state. It is not currently not in accepted state.`,
+                         });
+                         return res.sendStatus(200);
+                    }
                     // ✅ CONFIRMATION MESSAGE
                     await sendTextMessage({
                          to: message.from,
@@ -127,13 +141,20 @@ export const whatsappWebhook = async (req, res) => {
                     const { final_amount } = calculateFinalAmount(order);
                     const displayOrderId = String(order.user_order_id || "");
 
-                    const { error } = await supabase
+                    const { data: updated, error } = await supabase
                          .from("orders")
                          .update({ status: "prepared", prepared_ts: new Date() })
-                         .eq("order_id", order_id);
+                         .eq("order_id", order_id)
+                         .eq("status", "preparing") 
 
                     if (error) throw error;
-
+                    if (!updated || updated.length === 0) {
+                         await sendTextMessage({
+                              to: message.from,
+                              text: `❌ Order ${displayOrderId} can't able to go on prepared state. It is not currently not in preparing state.`,
+                         });
+                         return res.sendStatus(200);
+                    }
                     // ✅ CONFIRMATION MESSAGE
                     await sendTextMessage({
                          to: message.from,
@@ -161,6 +182,7 @@ export const whatsappWebhook = async (req, res) => {
                          .from("orders")
                          .select("dp_otp, v_id")
                          .eq("order_id", order_id)
+                         .eq("status", "prepared") 
                          .single();
 
                     if (orderErr || !orders || !orders.dp_otp) {
@@ -205,6 +227,7 @@ export const whatsappWebhook = async (req, res) => {
                if (orderErr || !pendingOrder) {
                     return res.sendStatus(200);
                }
+               
                const { order } = await getFullOrderDetails(pendingOrder.order_id);
                const displayOrderId = String(order.user_order_id || "");
                // 🔐 Yahan bhi vendor auth check (same helper)
@@ -223,14 +246,22 @@ export const whatsappWebhook = async (req, res) => {
                if (parseInt(enteredOtp) === parseInt(pendingOrder.dp_otp)) {
 
                     // Tumhara existing RPC call
-                    const { error: rpcErr } = await supabase
+                    const { data: updated, error: rpcErr } = await supabase
                          .from("orders")
                          .update({
                               status: "on the way",
                               on_the_way_ts: new Date(),
                          })
-                         .eq("order_id", pendingOrder.order_id);
+                         .eq("order_id", pendingOrder.order_id)
+                         .eq("status", "prepared") 
 
+                    if (!updated || updated.length === 0) {
+                         await sendTextMessage({
+                              to: message.from,
+                              text: `❌ Order ${displayOrderId} can't able to go on hand over state. It is not currently not in prepared state.`,
+                         });
+                         return res.sendStatus(200);
+                    }
                     if (!rpcErr) {
                          await sendTextMessage({
                               to: waId,
