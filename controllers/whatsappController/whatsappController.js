@@ -57,7 +57,7 @@ export const whatsappWebhook = async (req, res) => {
                     }
                }
 
-              
+
                const waId = message.from;
 
                const allowed = await assertVendorAuthorized(order_id, waId);
@@ -75,8 +75,9 @@ export const whatsappWebhook = async (req, res) => {
                          .from("orders")
                          .update({ status: "accepted", accepted_ts: new Date() })
                          .eq("order_id", order_id)
-                         .eq("status", "pending") 
-                         
+                         .eq("status", "pending")
+                         .select();
+
                     if (error) {
                          console.error("ACCEPT_ORDER update error:", error);
                          throw error;
@@ -92,21 +93,22 @@ export const whatsappWebhook = async (req, res) => {
                          to: message.from,
                          text: `✅ Order ${displayOrderId} accepted successfully!`
                     });
-               
+
 
                } else if (action === "START_PREPARING") {
                     // ✅ Vendor ne Start Preparing dabaya
-                    
+
                     const { order, vendor, user, itemsText } = await getFullOrderDetails(order_id);
                     const to = vendor.mobile_number.replace(/\D/g, "");
                     const { final_amount } = calculateFinalAmount(order);
                     const displayOrderId = String(order.user_order_id || "");
 
-                         const { data: updated, error } = await supabase
+                    const { data: updated, error } = await supabase
                          .from("orders")
                          .update({ status: "preparing", preparing_ts: new Date() })
                          .eq("order_id", order_id)
-                         .eq("status", "accepted") 
+                         .eq("status", "accepted")
+                         .select();
 
                     if (error) throw error;
                     if (!updated || updated.length === 0) {
@@ -145,7 +147,8 @@ export const whatsappWebhook = async (req, res) => {
                          .from("orders")
                          .update({ status: "prepared", prepared_ts: new Date() })
                          .eq("order_id", order_id)
-                         .eq("status", "preparing") 
+                         .eq("status", "preparing")
+                         .select();
 
                     if (error) throw error;
                     if (!updated || updated.length === 0) {
@@ -175,14 +178,14 @@ export const whatsappWebhook = async (req, res) => {
                     });
                } else if (action === "HAND_OVER") {
                     // ✅ HAND_OVER: Existing dp_otp use karo
-                    const { order} = await getFullOrderDetails(order_id);
+                    const { order } = await getFullOrderDetails(order_id);
                     const displayOrderId = String(order.user_order_id || "");
 
                     const { data: orders, error: orderErr } = await supabase
                          .from("orders")
                          .select("dp_otp, v_id")
                          .eq("order_id", order_id)
-                         .eq("status", "prepared") 
+                         .eq("status", "prepared")
                          .single();
 
                     if (orderErr || !orders || !orders.dp_otp) {
@@ -232,7 +235,7 @@ export const whatsappWebhook = async (req, res) => {
                if (orderErr || !pendingOrder) {
                     return res.sendStatus(200);
                }
-               
+
                const { order } = await getFullOrderDetails(pendingOrder.order_id);
                const displayOrderId = String(order.user_order_id || "");
                // 🔐 Yahan bhi vendor auth check (same helper)
@@ -258,7 +261,8 @@ export const whatsappWebhook = async (req, res) => {
                               on_the_way_ts: new Date(),
                          })
                          .eq("order_id", pendingOrder.order_id)
-                         .eq("status", "prepared") 
+                         .eq("status", "prepared")
+                         .select();
 
                     if (!updated || updated.length === 0) {
                          await sendTextMessage({
@@ -280,7 +284,7 @@ export const whatsappWebhook = async (req, res) => {
                     }
                } else {
                     console.log('OTP MIsmatch' + enteredOtp + pendingOrder.dp_otp);
-                    
+
                     await sendTextMessage({
                          to: waId,
                          text: `❌ Invalid OTP. Try again.`
