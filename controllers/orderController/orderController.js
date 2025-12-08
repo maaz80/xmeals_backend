@@ -1,6 +1,7 @@
 // orderController.js
 import fetch from "node-fetch";
 import { calculateFinalAmount, getFullOrderDetails } from "../../services/orderService.js";
+import { supabase } from "../../config/supbase.js";
 
 // ✅ Common helper: WhatsApp template send
 export async function sendWhatsappTemplate({
@@ -8,6 +9,7 @@ export async function sendWhatsappTemplate({
      templateName,
      bodyParams = [],
      buttonPayload,
+     order_id
 }) {
      const url = `https://graph.facebook.com/v18.0/${process.env.WHATSAPP_PHONE_ID}/messages`;
 
@@ -52,6 +54,17 @@ export async function sendWhatsappTemplate({
 
      const json = await res.json();
      console.log("WhatsApp send response =>", json);
+     // ✅ STORE MESSAGE ID IN ORDER
+     if (json.messages?.[0]?.id && order_id) {
+          await supabase
+               .from("orders")
+               .update({
+                    wa_message_id: json.messages[0].id,
+                    wa_template_sent_ts: new Date()
+               })
+               .eq("order_id", order_id);
+          console.log(`✅ Stored message ID ${json.messages[0].id} for order ${order_id}`);
+     }
      return json;
 }
 
@@ -84,7 +97,7 @@ export async function sendTextMessage({ to, text }) {
 // 📌 Trigger → Backend: order create hone par vendor ko Accept template
 export const onOrderCreated = async (req, res) => {
      try {
-          const { order_id, v_id ,user_order_id } = req.body;
+          const { order_id, v_id, user_order_id } = req.body;
 
           if (!order_id || !v_id) {
                return res.status(400).json({ error: "order_id or v_id missing" });
@@ -108,6 +121,7 @@ export const onOrderCreated = async (req, res) => {
                     { type: "text", text: itemsText },                // {{4}} Items list
                ],
                buttonPayload: `ACCEPT_ORDER:${order_id}`,          // button_reply.id
+               order_id,
           });
 
           return res.status(200).json({ message: "WhatsApp sent", whatsappRes });

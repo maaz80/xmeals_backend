@@ -34,15 +34,30 @@ export const whatsappWebhook = async (req, res) => {
                const { order } = await getFullOrderDetails(order_id);
                const displayOrderId = String(order.user_order_id || "");
 
+               // whatsappController.js में ACCEPT_ORDER से पहले:
                if (action === "ACCEPT_ORDER" || action === "START_PREPARING") {
-                    if (isMessageExpired(message, 5)) {
-                         await sendTextMessage({
-                              to: message.from,
-                              text: `⏰ Time limit exceeded for order ${displayOrderId}. Please use the latest WhatsApp message.`,
-                         });
-                         return res.sendStatus(200);
+                    const { data: order } = await supabase
+                         .from("orders")
+                         .select("wa_template_sent_ts, user_order_id")
+                         .eq("order_id", order_id)
+                         .single();
+
+                    if (order?.wa_template_sent_ts) {
+                         const sentTs = new Date(order.wa_template_sent_ts).getTime();
+                         const diffMin = (Date.now() - sentTs) / 60000;
+
+                         if (diffMin > 5) {
+                              const displayOrderId = String(order.user_order_id || "");
+                              await sendTextMessage({
+                                   to: message.from,
+                                   text: `⏰ Order ${displayOrderId} massege limit exceeded. `,
+                              });
+                              return res.sendStatus(200);
+                         }
+                         console.log(`✅ Order ${order_id} valid: ${diffMin.toFixed(1)}min old`);
                     }
                }
+
               
                const waId = message.from;
 
