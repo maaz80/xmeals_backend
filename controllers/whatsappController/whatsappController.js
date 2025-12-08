@@ -38,7 +38,7 @@ export const whatsappWebhook = async (req, res) => {
                if (action === "ACCEPT_ORDER" || action === "START_PREPARING") {
                     const { data: order } = await supabase
                          .from("orders")
-                         .select("wa_template_sent_ts, user_order_id")
+                         .select("wa_message_created_ts, user_order_id")
                          .eq("order_id", order_id)
                          .single();
 
