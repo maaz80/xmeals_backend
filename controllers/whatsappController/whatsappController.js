@@ -74,8 +74,8 @@ export const whatsappWebhook = async (req, res) => {
                     const { data: updated, error } = await supabase
                          .from("orders")
                          .update({ status: "accepted", accepted_ts: new Date() })
-                         .eq("status", "pending")
                          .eq("order_id", order_id)
+                         .eq("status", "pending")
                          .select();
 
                     if (error) {
@@ -186,20 +186,26 @@ export const whatsappWebhook = async (req, res) => {
                          .select("dp_otp, v_id")
                          .eq("order_id", order_id)
                          .eq("status", "prepared")
-                         // .single();
+                         .single();
 
-                    if (orderErr || !orders || orders.dp_otp == null) {
-                         await supabase
-                              .from("orders")
-                              .update({ wa_handover_error_sent: true })
-                              .eq("order_id", order_id);
-
+                    if (orderErr || !orders || !orders.dp_otp) {
+                         console.error("Order or DP OTP not found:", orderErr);
+                         // const waId = message.from;
+                         // await sendTextMessage({
+                         //      to: waId,
+                         //      text: `❌ Order ${displayOrderId} can't go to hand over state. It is not in prepared state or DP OTP is missing.`,
+                         // });
+                         // return res.status(400).json({ error: "DP OTP not available" });
+                    }
+                    if(!orders){
+                         const waId = message.from;
                          await sendTextMessage({
-                              to: message.from,
+                              to: waId,
                               text: `❌ Order ${displayOrderId} can't go to hand over state. It is not in prepared state or DP OTP is missing.`,
                          });
                          return res.status(400).json({ error: "DP OTP not available" });
                     }
+                    
                     // Status handover_pending karo
                     await supabase
                          .from("orders")
