@@ -200,7 +200,6 @@ export const whatsappWebhook = async (req, res) => {
                          });
                          return res.status(400).json({ error: "DP OTP not available" });
                     }
-                    
                     // Status handover_pending karo
                     await supabase
                          .from("orders")
