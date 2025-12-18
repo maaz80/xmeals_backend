@@ -1,6 +1,6 @@
 // orderController.js
 import fetch from "node-fetch";
-import { calculateFinalAmount, getFullOrderDetails } from "../../services/orderService.js";
+import { assertVendorAuthorized, calculateFinalAmount, getFullOrderDetails } from "../../services/orderService.js";
 import { supabase } from "../../config/supbase.js";
 
 // ✅ Common helper: WhatsApp template send
@@ -110,6 +110,14 @@ export const onOrderCreated = async (req, res) => {
 
           const { final_amount } = calculateFinalAmount(order);
           const displayOrderId = String(user_order_id || order.user_order_id || "");
+
+          // Authorization check
+          const allowed = await assertVendorAuthorized(order_id, toNumber);
+          if (!allowed) {
+               console.log("Unauthorized WhatsApp user for order", displayOrderId, toNumber);
+               return res.sendStatus(403);
+          }
+
           // 6️⃣ Send "Accept Order" template
           const whatsappRes = await sendWhatsappTemplate({
                to: toNumber,

@@ -1,8 +1,8 @@
 // orderTimeWorker.js
 import cron from "node-cron";
 import { supabase } from "../../config/supbase.js";
-import { sendWhatsappTemplate } from "./orderController.js";
-import { calculateFinalAmount, getFullOrderDetails } from "../../services/orderService.js";
+import { sendTextMessage, sendWhatsappTemplate } from "./orderController.js";
+import { assertVendorAuthorized, calculateFinalAmount, getFullOrderDetails } from "../../services/orderService.js";
 
 // har 1 minute me chalega
 cron.schedule("*/3 * * * *", async () => {
@@ -22,7 +22,7 @@ cron.schedule("*/3 * * * *", async () => {
 
      for (const o of orders) {
           if (!o.accepted_ts) continue; // accepted_ts zaruri
-          if (o.wa_preparing_reminder_sent) continue; 
+          if (o.wa_preparing_reminder_sent) continue;
 
           const dpAssigned = !!o.dp_id;
 
@@ -57,6 +57,17 @@ cron.schedule("*/3 * * * *", async () => {
           const to = vendor.mobile_number.replace(/\D/g, "");
           const { final_amount } = calculateFinalAmount(order);
           const displayOrderId = String(user_order_id || o.user_order_id || "");
+
+          // Authorization check
+          const allowed = await assertVendorAuthorized(order_id, to);
+          if (!allowed) {
+               console.log("Unauthorized WhatsApp user for order", displayOrderId, to);
+               await sendTextMessage({
+                    to: to,
+                    text: "❌ You are not authorized to manage this order. Please contact support or use your registered WhatsApp number.",
+               });
+               continue;
+          }
 
           // 2️⃣ Start Preparing template
           await sendWhatsappTemplate({
