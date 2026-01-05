@@ -78,12 +78,8 @@ export const razorpayWebhook = async (req, res) => {
           );
 
           if (error) {
-               console.error("⚠️ RPC Error:", error.message);
-
-               // 🚨 CRITICAL CHECK FOR RACE CONDITION
-               // If RPC says "Order not found", it means Webhook is faster than Frontend.
-               // We MUST return 500 to tell Razorpay to retry in 2 mins.
-               return res.status(500).json({ success: false });
+               console.error("RPC Error:", error.message);
+               return res.status(500).end(); // 👈 MUST
           }
 
           console.log("✅ Order Processed Successfully");
