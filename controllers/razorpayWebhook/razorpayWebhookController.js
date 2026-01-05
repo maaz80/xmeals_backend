@@ -57,7 +57,7 @@ export const razorpayWebhook = async (req, res) => {
                case "payment.captured": {
                     // We ignore this because 'order.paid' covers the full success logic.
                     // If we process both, we might get double notifications.
-                    console.log("ℹ️ Ignoring payment.captured (Waiting for order.paid)" , p_order_id);
+                    console.log("ℹ️ Ignoring payment.captured (Waiting for order.paid)" );
                     // ✅ 200 OK: Tells Razorpay "Got it, stop sending this."
                     return res.status(200).json({ success: true });
                }
