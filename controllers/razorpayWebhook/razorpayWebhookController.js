@@ -34,7 +34,7 @@ export const razorpayWebhook = async (req, res) => {
                     const p = data.payload.payment.entity;
 
                     rpcPayload = {
-                         p_razorpay_order_id: o.id,   // Razorpay ID (order_xyz)
+                         p_order_id: o.id,   // Razorpay ID (order_xyz)
                          p_transaction_id: p.id,      // Payment ID (pay_xyz)
                          p_order_status: "order.paid",
                     };
@@ -46,7 +46,7 @@ export const razorpayWebhook = async (req, res) => {
                     const p = data.payload.payment.entity;
 
                     rpcPayload = {
-                         p_razorpay_order_id: p.order_id,
+                         p_order_id: p.order_id,
                          p_transaction_id: p.id,
                          p_order_status: "payment.failed",
                     };
