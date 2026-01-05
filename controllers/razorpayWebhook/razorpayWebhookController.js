@@ -11,126 +11,82 @@ export const razorpayWebhook = async (req, res) => {
                .update(req.body) // raw buffer
                .digest("hex");
 
+          // ❌ INVALID SIGNATURE → NO RETRY (security issue)
           if (receivedSignature !== expectedSignature) {
                console.log("❌ Invalid signature");
                return res.status(400).json({ success: false });
           }
 
-          console.log("🔥 Webhook HIT at:", new Date().toISOString());
-          console.log("⚡ Signature Verified");
+          console.log("🔥 Webhook HIT:", new Date().toISOString());
 
           const data = JSON.parse(req.body.toString());
           const event = data.event;
 
           console.log("EVENT:", event);
 
-          try {
-               switch (event) {
-                    case "payment.captured": {
-                         const payment = data.payload.payment.entity;
-                         const paymentId = payment.id;
-                         const orderId = payment.order_id;
+          let rpcPayload = null;
 
-                         console.log("💚 Payment Captured:", paymentId, "Order:", orderId);
-
-                         const { error } = await supabase.rpc(
-                              "razorpay_transaction_record_rpc",
-                              {
-                                   p_order_id: orderId,
-                                   p_transaction_id: paymentId,
-                                   p_order_status: "payment.captured",
-                              }
-                         );
-
-                         if (error) {
-                              console.error("RPC error (captured):", error);
-                         }
-
-                         break;
-                    }
-
-                    case "payment.failed": {
-                         const payment = data.payload.payment.entity;
-                         const paymentId = payment.id;
-                         const orderId = payment.order_id;
-
-                         console.log("❌ Payment Failed:", paymentId, "Order:", orderId);
-
-                         const { error } = await supabase.rpc(
-                              "razorpay_transaction_record_rpc",
-                              {
-                                   p_order_id: orderId,
-                                   p_transaction_id: paymentId,
-                                   p_order_status: "payment.failed",
-                              }
-                         );
-
-                         if (error) {
-                              console.error("RPC error (failed):", error);
-                         }
-
-                         break;
-                    }
-
-                    // case "payment.authorized": {
-                    //      const payment = data.payload.payment.entity;
-                    //      const paymentId = payment.id;
-                    //      const orderId = payment.order_id;
-
-                    //      console.log("⚠️ Payment Authorized:", paymentId, "Order:", orderId);
-
-                    //      const { error } = await supabase.rpc(
-                    //           "razorpay_transaction_record_rpc",
-                    //           {
-                    //                p_order_id: orderId,
-                    //                p_transaction_id: paymentId,
-                    //                p_order_status: "payment.authorized",
-                    //           }
-                    //      );
-
-                    //      if (error) {
-                    //           console.error("RPC error (authorized):", error);
-                    //      }
-
-                    //      break;
-                    // }
-
-                    case "order.paid": {
-                         const order = data.payload.order.entity;
-                         const payment = data.payload.payment.entity;
-                         const orderId = order.id;
-                         const paymentId = payment.id;
-
-                         console.log("🟦 Order Paid:", orderId, "Payment:", paymentId);
-
-                         const { error } = await supabase.rpc(
-                              "razorpay_transaction_record_rpc",
-                              {
-                                   p_order_id: orderId,
-                                   p_transaction_id: paymentId,
-                                   p_order_status: "order.paid",
-                              }
-                         );
-
-                         if (error) {
-                              console.error("RPC error (order.paid):", error);
-                         }
-
-                         break;
-                    }
-
-                    default:
-                         console.log("🔸 Unhandled Event:", event);
+          // 🎯 Decide payload only (NO DB CALL YET)
+          switch (event) {
+               case "payment.captured": {
+                    const p = data.payload.payment.entity;
+                    rpcPayload = {
+                         p_order_id: p.order_id,
+                         p_transaction_id: p.id,
+                         p_order_status: "payment.captured",
+                    };
+                    break;
                }
-          } catch (innerErr) {
-               console.error("Inner webhook handler error:", innerErr);
+
+               case "payment.failed": {
+                    const p = data.payload.payment.entity;
+                    rpcPayload = {
+                         p_order_id: p.order_id,
+                         p_transaction_id: p.id,
+                         p_order_status: "payment.failed",
+                    };
+                    break;
+               }
+
+               case "order.paid": {
+                    const o = data.payload.order.entity;
+                    const p = data.payload.payment.entity;
+                    rpcPayload = {
+                         p_order_id: o.id,
+                         p_transaction_id: p.id,
+                         p_order_status: "order.paid",
+                    };
+                    break;
+               }
+
+               default:
+                    console.log("🔸 Ignored Event:", event);
+                    // ⚠️ Unknown event → ACK so Razorpay doesn't retry
+                    return res.status(200).json({ success: true });
           }
 
-          // Razorpay ko hamesha 200/ok dena (warna woh retry spam karega)
-          return res.json({ success: true });
-     } catch (outerErr) {
-          console.error("Webhook outer error:", outerErr);
-          // yahan bhi ideally 200 hi do, but log zarur karo
-          return res.json({ success: true });
+          // ❌ SAFETY CHECK
+          if (!rpcPayload) {
+               return res.status(200).json({ success: true });
+          }
+
+          // 🚨 SINGLE DB CALL POINT
+          const { error } = await supabase.rpc(
+               "razorpay_transaction_record_rpc",
+               rpcPayload
+          );
+
+          if (error) {
+               console.error("⚠️ RPC FAILED → RETRY NEEDED", error);
+               return res.status(500).json({ success: false }); // 🔁 Razorpay retry
+          }
+
+          // ✅ SUCCESS → STOP RETRY
+          console.log("✅ Webhook processed successfully");
+          return res.status(200).json({ success: true });
+
+     } catch (err) {
+          console.error("❌ Webhook crashed:", err);
+          return res.status(500).json({ success: false }); // 🔁 Retry
      }
 };
