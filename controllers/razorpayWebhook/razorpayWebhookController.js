@@ -57,7 +57,7 @@ export const razorpayWebhook = async (req, res) => {
                case "payment.captured": {
                     // We ignore this because 'order.paid' covers the full success logic.
                     // If we process both, we might get double notifications.
-                    console.log("ℹ️ Ignoring payment.captured (Waiting for order.paid)");
+                    console.log("ℹ️ Ignoring payment.captured (Waiting for order.paid)" , p_order_id);
                     // ✅ 200 OK: Tells Razorpay "Got it, stop sending this."
                     return res.status(200).json({ success: true });
                }
@@ -78,11 +78,11 @@ export const razorpayWebhook = async (req, res) => {
           );
 
           if (error) {
-               console.error("RPC Error:", error.message);
+               console.error("RPC Error: Order ID", rpcPayload.p_order_id , error.message );
                return res.status(500).end(); // 👈 MUST
           }
 
-          console.log("✅ Order Processed Successfully");
+          console.log("✅ Order Processed Successfully" , rpcPayload.p_order_id);
           return res.status(200).json({ success: true });
 
      } catch (err) {
