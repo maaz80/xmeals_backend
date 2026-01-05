@@ -28,15 +28,6 @@ export const razorpayWebhook = async (req, res) => {
 
           // 🎯 Decide payload only (NO DB CALL YET)
           switch (event) {
-               case "payment.captured": {
-                    const p = data.payload.payment.entity;
-                    rpcPayload = {
-                         p_order_id: p.order_id,
-                         p_transaction_id: p.id,
-                         p_order_status: "payment.captured",
-                    };
-                    break;
-               }
 
                case "payment.failed": {
                     const p = data.payload.payment.entity;
@@ -62,12 +53,12 @@ export const razorpayWebhook = async (req, res) => {
                default:
                     console.log("🔸 Ignored Event:", event);
                     // ⚠️ Unknown event → ACK so Razorpay doesn't retry
-                    return res.status(200).json({ success: true });
+                    return res.status(400).json({ success: false });
           }
 
           // ❌ SAFETY CHECK
           if (!rpcPayload) {
-               return res.status(200).json({ success: true });
+               return res.status(400).json({ success: false });
           }
 
           // 🚨 SINGLE DB CALL POINT
