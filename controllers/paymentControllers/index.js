@@ -80,7 +80,7 @@ export const finalisePayment = async (req, res) => {
 
     const {user} = req;
     const paymentType = orderPayload?.p_payment_type;
-
+    let razorpayAmount = 0;
     // STEP A: VERIFY SIGNATURE (only for online payments)
     if (paymentType === 'online') {
       if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
@@ -123,7 +123,8 @@ export const finalisePayment = async (req, res) => {
       console.log('✅ Payment signature verified successfully.');
 
        const payment = await razorpay.payments.fetch(razorpay_payment_id);
-
+       razorpayAmount = payment.amount;
+ 
       if (!payment) {
         return res.status(404).json({ message: "Payment not found on Razorpay." });
       }
@@ -194,7 +195,7 @@ export const finalisePayment = async (req, res) => {
       ...orderPayload,
       // Use the verified payment ID for online, or 'cod' for cash
       p_payment_id: paymentType === 'online' ? razorpay_payment_id : 'cod',
-      p_paid_amount: paymentType === 'online' ? payment.amount : 0, 
+      p_paid_amount: paymentType === 'online' ? razorpayAmount : 0, 
     };
 
     // Assuming you have a Supabase service role client initialized
