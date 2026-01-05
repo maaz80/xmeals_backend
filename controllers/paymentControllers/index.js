@@ -198,7 +198,7 @@ export const finalisePayment = async (req, res) => {
       p_razorpay_order_id: paymentType === 'online' ? razorpay_order_id : 'cod',
       p_paid_amount: paymentType === 'online' ? razorpayAmount : 0,
     };
-    console.log('RazorPay amount sent by backend by maaz', razorpayAmount);
+  console.log('RazorPay amount sent by backend by maaz', razorpayAmount);
     // Assuming you have a Supabase service role client initialized
     // const supabaseAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
     const { data, error } = await supabase.rpc("handle_place_order_test", rpcParams);
