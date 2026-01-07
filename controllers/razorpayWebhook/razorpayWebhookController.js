@@ -67,7 +67,7 @@ export const razorpayWebhook = async (req, res) => {
                     };
 
                     txnPayload = {
-                         p_razorpay_order_id: payment.order_id,
+                         p_razorpay_order_id: order.id,
                          p_payment_id: payment.id,
                          p_order_status: "order.paid",
                     };
@@ -78,9 +78,9 @@ export const razorpayWebhook = async (req, res) => {
 
                case "payment.failed": {
                     const payment = payload.payload.payment.entity;
-
+                    const order = payload.payload.order.entity;
                     txnPayload = {
-                         p_razorpay_order_id: payment.order_id,
+                         p_razorpay_order_id: order.id,
                          p_payment_id: payment.id,
                          p_order_status: "payment.failed",
                     };
