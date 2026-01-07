@@ -215,18 +215,13 @@ export const finalisePayment = async (req, res) => {
 
     // STEP C: PREPARE AND CALL THE SECURE RPC FUNCTION
     const rpcParams = {
+      ...orderPayload,
+      // Use the verified payment ID for online, or 'cod' for cash
       p_order_id: pending_order_id,
-      p_payment_type: orderPayload.p_payment_type,
       p_payment_id: paymentType === 'online' ? razorpay_payment_id : 'cod',
-      p_razorpay_order_id: paymentType === 'online' ? razorpay_order_id : null,
+      p_razorpay_order_id: paymentType === 'online' ? razorpay_order_id : 'cod',
       p_paid_amount: paymentType === 'online' ? razorpayAmount : 0,
-      p_user_id: orderPayload.p_user_id,
-      p_address_id: orderPayload.p_address_id,
-      p_cart_vendor_id: orderPayload.p_cart_vendor_id,
-      p_cart_items: orderPayload.p_cart_items,
-      p_tax_collected: orderPayload.p_tax_collected,
     };
-
 
     // Assuming you have a Supabase service role client initialized
     // const supabaseAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
@@ -411,7 +406,11 @@ export const codOrderCreation = async (req, res) => {
     switch (data.status) {
       case 'success':
         console.log('✅ Order created with ID:', data.order_id);
-        break; // continue to Razorpay creation
+
+        return res.status(200).json({
+          status: 'success',
+          order_id: data.order_id
+        });
 
       case 'item_not_found':
         return res.status(404).json(data);
@@ -425,12 +424,6 @@ export const codOrderCreation = async (req, res) => {
       default:
         return res.status(500).json({ message: 'Unexpected response from RPC.' });
     }
-
-    // ✅ Log success, continue to Razorpay order creation
-    console.log('✅ Order created with ID:', data.order_id);
-
-    // STEP 3: Fallback if no data and no error
-    return res.status(500).json({ message: 'Unexpected state: no RPC data and no error.' });
 
   } catch (err) {
     console.error('🔥 Fatal Error in /api/cod-order-creation:', err);
