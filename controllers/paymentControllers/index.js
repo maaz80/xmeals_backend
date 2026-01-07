@@ -215,12 +215,16 @@ export const finalisePayment = async (req, res) => {
 
     // STEP C: PREPARE AND CALL THE SECURE RPC FUNCTION
     const rpcParams = {
-      ...orderPayload,
-      // Use the verified payment ID for online, or 'cod' for cash
       p_order_id: pending_order_id,
+      p_payment_type: orderPayload.p_payment_type,
       p_payment_id: paymentType === 'online' ? razorpay_payment_id : 'cod',
-      p_razorpay_order_id: paymentType === 'online' ? razorpay_order_id : 'cod',
+      p_razorpay_order_id: paymentType === 'online' ? razorpay_order_id : null,
       p_paid_amount: paymentType === 'online' ? razorpayAmount : 0,
+      p_user_id: orderPayload.p_user_id,
+      p_address_id: orderPayload.p_address_id,
+      p_cart_vendor_id: orderPayload.p_cart_vendor_id,
+      p_cart_items: orderPayload.p_cart_items,
+      p_tax_collected: orderPayload.p_tax_collected,
     };
 
     // Assuming you have a Supabase service role client initialized
