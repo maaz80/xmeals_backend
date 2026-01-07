@@ -75,7 +75,7 @@ export const whatsappWebhook = async (req, res) => {
                          .from("orders")
                          .update({ status: "accepted", accepted_ts: new Date(), wa_message_created_ts: new Date() })
                          .eq("order_id", order_id)
-                         .eq("status", "pending")
+                         .eq("status", "Placed")
                          .select();
 
                     if (error) {
@@ -85,7 +85,7 @@ export const whatsappWebhook = async (req, res) => {
                     if (!updated || updated.length === 0) {
                          await sendTextMessage({
                               to: message.from,
-                              text: `❌ Order ${displayOrderId} cannot be accepted. It is not in pending state.`,
+                              text: `❌ Order ${displayOrderId} cannot be accepted. It is not in Placed state.`,
                          });
                          return res.sendStatus(200);
                     }
@@ -198,7 +198,7 @@ export const whatsappWebhook = async (req, res) => {
                          return res.sendStatus(200);
                     }
 
-                    // Status handover_pending karo
+                    // Status handover_Placed karo
                     await supabase
                          .from("orders")
                          .update({ wa_handover_otp_started: true })
@@ -222,25 +222,25 @@ export const whatsappWebhook = async (req, res) => {
                const waId = message.from;
                const enteredOtp = message.text.body.trim();
 
-               // handover_pending order dhundo (latest)
-               const { data: pendingOrder, error: orderErr } = await supabase
+               // handover_Placed order dhundo (latest)
+               const { data: PlacedOrder, error: orderErr } = await supabase
                     .from("orders")
                     .select("*")
                     .eq("status", "prepared")
-                    // .eq("order_id", pendingOrder.order_id)
+                    // .eq("order_id", PlacedOrder.order_id)
                     .eq("wa_handover_otp_started", true)
                     .order("updated_ts", { ascending: false })
                     .limit(1)
                     .single();
 
-               if (orderErr || !pendingOrder) {
+               if (orderErr || !PlacedOrder) {
                     return res.sendStatus(200);
                }
 
-               const { order } = await getFullOrderDetails(pendingOrder.order_id);
+               const { order } = await getFullOrderDetails(PlacedOrder.order_id);
                const displayOrderId = String(order.user_order_id || "");
                // 🔐 Yahan bhi vendor auth check (same helper)
-               const allowed = await assertVendorAuthorized(pendingOrder.order_id, waId);
+               const allowed = await assertVendorAuthorized(PlacedOrder.order_id, waId);
                if (!allowed) {
                     console.log("Unauthorized WhatsApp user for OTP", displayOrderId, waId);
                     await sendTextMessage({
@@ -252,7 +252,7 @@ export const whatsappWebhook = async (req, res) => {
                }
 
                // ✅ Existing dp_otp se match karo
-               if (parseInt(enteredOtp) === parseInt(pendingOrder.dp_otp)) {
+               if (parseInt(enteredOtp) === parseInt(PlacedOrder.dp_otp)) {
 
                     // Tumhara existing RPC call
                     const { data: updated, error: rpcErr } = await supabase
@@ -261,7 +261,7 @@ export const whatsappWebhook = async (req, res) => {
                               status: "on the way",
                               on_the_way_ts: new Date(),
                          })
-                         .eq("order_id", pendingOrder.order_id)
+                         .eq("order_id", PlacedOrder.order_id)
                          .eq("status", "prepared")
                          .select();
 
@@ -284,7 +284,7 @@ export const whatsappWebhook = async (req, res) => {
                          });
                     }
                } else {
-                    console.log('OTP MIsmatch' + enteredOtp + pendingOrder.dp_otp);
+                    console.log('OTP MIsmatch' + enteredOtp + PlacedOrder.dp_otp);
 
                     await sendTextMessage({
                          to: waId,

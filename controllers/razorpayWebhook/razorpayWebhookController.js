@@ -1,93 +1,138 @@
 import crypto from "crypto";
-import { supabase } from "../../config/supbase.js"; // Typo fixed: supabase.js
+import { supabase } from "../../config/supbase.js";
 
 export const razorpayWebhook = async (req, res) => {
      try {
-          const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
-          const receivedSignature = req.headers["x-razorpay-signature"];
+          /* ---------------- Signature Verify ---------------- */
+          const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
+          const signature = req.headers["x-razorpay-signature"];
 
-          // 1. SECURITY: Signature Verification
-          // Ensure req.body is a Buffer (standard for raw webhook handling)
-          const expectedSignature = crypto
-               .createHmac("sha256", webhookSecret)
+          const expected = crypto
+               .createHmac("sha256", secret)
                .update(req.body)
                .digest("hex");
 
-          if (receivedSignature !== expectedSignature) {
-               console.error("❌ Invalid Signature: Potential Attack");
-               // ⛔ 400: REJECT PERMANENTLY (Don't retry attacks)
+          if (signature !== expected) {
+               console.error("❌ Invalid Razorpay signature");
                return res.status(400).json({ success: false });
           }
 
-          // 2. PARSE EVENT
-          const data = JSON.parse(req.body.toString());
-          const event = data.event;
-          console.log(`⚡ Webhook Event Received: ${event}`);
+          /* ---------------- Parse Event ---------------- */
+          const payload = JSON.parse(req.body.toString());
+          const event = payload.event;
 
-          let rpcPayload = null;
+          console.log("⚡ Razorpay event:", event);
 
-          // 3. EVENT ROUTING LOGIC
+          let txnPayload = null;
+          let shouldFinalizeOrder = false;
+
+          /* ---------------- Event Routing ---------------- */
           switch (event) {
-               // ✅ CASE A: The Success Event (Process This)
                case "order.paid": {
-                    const o = data.payload.order.entity;
-                    const p = data.payload.payment.entity;
+                    const order = payload.payload.order.entity;
+                    const payment = payload.payload.payment.entity;
+                    const orderPayloadJson = payment.notes?.orderPayload;
+                    const internalOrderId = payment.notes?.internal_order_id;
+                    if (!internalOrderId) {
+                         console.error("❌ internal_order_id missing");
+                         return res.status(400).json({ success: false });
+                    }
 
-                    rpcPayload = {
-                         p_order_id: o.id,   // Razorpay ID (order_xyz)
-                         p_transaction_id: p.id,      // Payment ID (pay_xyz)
-                         p_order_status: "order.paid",
+                    // fetch order + cart + vendor details from DB
+                    const { data: orderData } = await supabase
+                         .from('orders')
+                         .select('*')
+                         .eq('order_id', internalOrderId)
+                         .single();
+
+                    const { data: cartItems } = await supabase
+                         .from('user_cart')
+                         .select('*')
+                         .eq('u_id', orderData.u_id)
+                         .eq('vendor_id', orderData.v_id);
+
+                    txnPayload = {
+                         p_order_id: internalOrderId,
+                         p_payment_type: 'online',
+                         p_payment_id: payment.id,
+                         p_razorpay_order_id: order.id,
+                         p_paid_amount: payment.amount / 100,
+                         p_user_id: orderData.u_id,
+                         p_address_id: orderData.addr_id,
+                         p_cart_vendor_id: orderData.v_id,
+                         p_cart_items: JSON.stringify(cartItems),
+                         p_tax_collected: orderData.tax_collected,
+
                     };
+
+                    shouldFinalizeOrder = true;
                     break;
                }
 
-               // ✅ CASE B: The Failure Event (Process This)
                case "payment.failed": {
-                    const p = data.payload.payment.entity;
+                    const payment = payload.payload.payment.entity;
 
-                    rpcPayload = {
-                         p_order_id: p.order_id,
-                         p_transaction_id: p.id,
+                    txnPayload = {
+                         p_razorpay_order_id: payment.order_id,
+                         p_payment_id: payment.id,
                          p_order_status: "payment.failed",
                     };
+
                     break;
                }
 
-               // 🛑 CASE C: The "Noise" Event (Explicitly Ignore)
                case "payment.captured": {
-                    // We ignore this because 'order.paid' covers the full success logic.
-                    // If we process both, we might get double notifications.
-                    console.log("ℹ️ Ignoring payment.captured (Waiting for order.paid)" );
-                    // ✅ 200 OK: Tells Razorpay "Got it, stop sending this."
+                    console.log("ℹ️ Ignoring payment.captured");
                     return res.status(200).json({ success: true });
                }
 
-               // 🛑 CASE D: Unknown Events (Safely Ignore)
                default: {
-                    console.warn(`🔸 Unhandled Event: ${event}`);
-                    // ✅ 200 OK: Prevents Razorpay from spamming retries for events we don't code for.
+                    console.log("ℹ️ Ignored event:", event);
                     return res.status(200).json({ success: true });
                }
           }
 
-          // 4. DATABASE UPDATE (Atomic RPC)
-          // If logic reached here, rpcPayload is guaranteed to be set
-          const { error } = await supabase.rpc(
+          /* ---------------- TRANSACTION RPC (ALWAYS) ---------------- */
+          const { error: txnError } = await supabase.rpc(
                "razorpay_transaction_record_rpc",
-               rpcPayload
+               txnPayload
           );
 
-          if (error) {
-               console.error("RPC Error: Order ID", rpcPayload.p_order_id , error.message );
-               return res.status(500).end(); // 👈 MUST
+          if (txnError) {
+               console.error("❌ Transaction RPC failed:", txnError.message);
+               // webhook retry needed
+               return res.status(500).json({ success: false });
           }
 
-          console.log("✅ Order Processed Successfully" , rpcPayload.p_order_id);
+          /* ---------------- FINALIZE ORDER (ONLY order.paid) ---------------- */
+          if (shouldFinalizeOrder) {
+               const { data, error: placeError } = await supabase.rpc(
+                    "verify_payment",
+                    txnPayload
+               );
+               if (data?.status === 'failed' && data.refund_amount > 0) {
+                    console.log("💰 Refund required for order:", data.order_id);
+
+                    const refund = await razorpay.payments.refund(data.payment_id, {
+                         amount: data.refund_amount * 100,
+                         refund_to_source: true
+                    });
+
+                    console.log("✅ Refund processed from webhook:", refund);
+               }
+
+               if (placeError) {
+                    console.error("❌ Order finalize RPC failed:", placeError.message);
+                    return res.status(500).json({ success: false });
+               }
+
+               console.log("✅ Order finalized:", txnPayload.p_order_id);
+          }
+
           return res.status(200).json({ success: true });
 
      } catch (err) {
-          console.error("🔥 Webhook Crash:", err);
-          // 🔁 500: Server crashed, please retry later
+          console.error("🔥 Webhook crash:", err);
           return res.status(500).json({ success: false });
      }
 };

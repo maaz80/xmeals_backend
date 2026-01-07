@@ -5,67 +5,139 @@ import jwt from 'jsonwebtoken';
 import { decreaseWalletBalance } from "../walletControllers/walletController.js";
 
 export const initilisePayment = async (req, res) => {
-  if (!razorpay) {
-    return res.status(500).json({ error: 'Razorpay not configured.' });
-  }
-
   try {
     const { amount, currency = 'INR', orderPayload } = req.body;
     const { user } = req;
 
-    if (!orderPayload) {
-      return res.status(400).json({ error: 'Order payload is required.' });
+    if (!orderPayload || user?.id !== orderPayload?.p_user_id) {
+      return res.status(403).json({ error: 'Unauthorized or missing payload.' });
     }
 
-    if (user?.id !== orderPayload?.p_user_id) {
-      return res.status(403).json({ error: 'User is not authorized to initiate this order.' });
-    }
-    // ✅ Check item total before fees/wallet
-    const itemTotal = Number(orderPayload?.p_item_total || 0);
-
-    if (itemTotal < 49) {
-      return res.status(400).json({
-        error: 'Minimum order value must be ₹49 before applying wallet or delivery fees.',
-        item_total: itemTotal, // 👈 include in error response too
-      });
+    // ✅ Pre-payment checks (cart total, min order)
+    if (orderPayload?.p_item_total < 49) {
+      return res.status(400).json({ error: 'Minimum order value ₹49 required.' });
     }
 
+    if (orderPayload.p_wallet_used && orderPayload.p_wallet_used > 0) {
+      try {
+        const walletReq = {
+          body: {
+            amount: orderPayload.p_wallet_used,
+            order_id: orderPayload.p_order_id,
+            type: 'debit',
+            description: 'Online order wallet deduction'
+          },
+          user
+        };
+
+        const walletPromise = new Promise((resolve, reject) => {
+          const mockRes = {
+            status: (code) => ({
+              json: (data) => {
+                if (code === 200) {
+                  console.log('✅ Wallet balance decreased successfully:', data);
+                  resolve(data);
+                } else {
+                  console.error('❌ Wallet decrease failed:', data);
+                  reject(new Error(data.message || 'Wallet decrease failed'));
+                }
+              }
+            })
+          };
+
+          // Call the wallet controller
+          decreaseWalletBalance(walletReq, mockRes);
+        });
+
+        // Wait for wallet decrease to complete
+        await walletPromise;
+
+      } catch (walletError) {
+        console.error('❌ Error decreasing wallet balance:', walletError);
+        return res.status(400).json({
+          message: 'Failed to deduct wallet balance',
+          error: walletError.message
+        });
+      }
+    }
+
+
+    // ✅ Create pending order via RPC
+    const { data: pendingOrder, error: rpcError } = await supabase.rpc("create_order", orderPayload);
+
+    if (rpcError) {
+      console.error('❌ RPC error:', rpcError);
+      return res.status(400).json({ error: rpcError.message });
+    }
+
+    // Safely handle array vs object
+    const orderData = Array.isArray(pendingOrder) ? pendingOrder[0] : pendingOrder;
+
+
+    if (!orderData) {
+      return res.status(500).json({ message: 'Pending order creation failed.' });
+    }
+
+    switch (orderData.status) {
+      case 'success':
+        console.log('✅ Pending order created with ID:', orderData.order_id);
+        break; // continue to Razorpay creation
+
+      case 'item_not_found':
+        return res.status(404).json(orderData);
+
+      case 'item_deactivated':
+        return res.status(410).json(orderData);
+
+      case 'price_change':
+        return res.status(409).json(orderData);
+
+      default:
+        return res.status(500).json({ message: 'Unexpected response from RPC.' });
+    }
+
+    // ✅ Log success, continue to Razorpay order creation
+    console.log('✅ Pending order created with ID:', orderData.order_id);
+
+    // ✅ Create Razorpay payment order
     const receipt = `rcpt_${crypto.randomBytes(12).toString('hex')}`;
     const options = {
-      amount: Math.round(amount * 100), // amount in the smallest currency unit
+      amount: Math.round(amount * 100),
       currency,
       receipt,
+      notes: {
+        internal_order_id: orderData.order_id, // <--- Pass your DB ID here
+      }
+
     };
 
     const order = await razorpay.orders.create(options);
-    // added security by hashing the order payload and signing it with JWT
-    // so that user cannot temper with the orderPayload object
-    // we will verify this hash and token in the finalise payment api
-    const payloadHash = crypto.createHash('sha256', process.env.RAZORPAY_KEY_SECRET).update(JSON.stringify(orderPayload)).digest('hex');
 
-    const paymentToken = jwt.sign(
-      {
-        hash: payloadHash,
-        razorpay_order_id: order.id,
-        user_id: user?.id
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: '15m' }
-    );
+    const payloadHash = crypto.createHash('sha256', process.env.RAZORPAY_KEY_SECRET)
+      .update(JSON.stringify(orderPayload))
+      .digest('hex');
 
+    const paymentToken = jwt.sign({
+      hash: payloadHash,
+      razorpay_order_id: order.id,
+      user_id: user?.id
+    }, process.env.JWT_SECRET, { expiresIn: '15m' });
 
-    res.json({
+    // ✅ Return Razorpay order + pending_order_id
+    return res.status(200).json({
       id: order.id,
       amount: order.amount,
       currency: order.currency,
-      token: paymentToken
+      token: paymentToken,
+      pending_order_id: orderData.order_id
     });
 
-  } catch (error) {
-    console.error('Error creating Razorpay order:', error);
-    res.status(500).json({ error: 'Failed to initiate order.' });
+  } catch (err) {
+    console.error('🔥 Error initiating payment:', err);
+    return res.status(500).json({ error: 'Failed to initiate order.' });
   }
-}
+};
+
 
 
 export const finalisePayment = async (req, res) => {
@@ -75,7 +147,8 @@ export const finalisePayment = async (req, res) => {
       razorpay_payment_id,
       razorpay_signature,
       orderPayload, // This contains all the params for your RPC function
-      token
+      token,
+      pending_order_id
     } = req.body;
 
     const { user } = req;
@@ -133,15 +206,101 @@ export const finalisePayment = async (req, res) => {
         return res.status(400).json({ message: "Payment does not belong to the given order." });
       }
 
-
-      // if(payment.amount !== Math.round((orderPayload.p_item_total + orderPayload.p_tax_collected + orderPayload.p_delivery_fee + orderPayload.p_platform_fee - orderPayload.p_wallet_used) * 100)) {
-      //   return res.status(400).json({ message: `Payment amount mismatch. Expected ₹${orderPayload.p_total_amount}, but got ₹${(payment.amount / 100).toFixed(2)}` });
-      // }
       if (payment.status !== "captured") {
         return res.status(400).json({ message: `Payment is not captured. Current status: ${payment.status}` });
       }
 
 
+    }
+
+    // STEP C: PREPARE AND CALL THE SECURE RPC FUNCTION
+    const rpcParams = {
+      ...orderPayload,
+      // Use the verified payment ID for online, or 'cod' for cash
+      p_order_id: pending_order_id,
+      p_payment_id: paymentType === 'online' ? razorpay_payment_id : 'cod',
+      p_razorpay_order_id: paymentType === 'online' ? razorpay_order_id : 'cod',
+      p_paid_amount: paymentType === 'online' ? razorpayAmount : 0,
+    };
+
+    // Assuming you have a Supabase service role client initialized
+    // const supabaseAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+    const { data, error } = await supabase.rpc("verify_payment", rpcParams);
+
+    // STEP D: HANDLE POSTGRES-LEVEL ERRORS (e.g., connection issue, RLS violation)
+    if (error) {
+      console.error('❌ Supabase RPC Error:', error);
+      try {
+        // The error message from `RAISE EXCEPTION` is a JSON string
+        const parsedError = JSON.parse(error.message);
+        return res.status(parsedError.status || 500).json(parsedError);
+      } catch (e) {
+        // If parsing fails, it's a generic error
+        return res.status(500).json({ message: "Failed to place order after payment." });
+      }
+    }
+
+    if (data?.status === 'already_failed' && data.refund_amount > 0) {
+      console.log("💰 Refund required for order:", data.order_id);
+
+      const refund = await razorpay.payments.refund(data.payment_id, {
+        amount: data.refund_amount * 100,
+        refund_to_source: true
+      });
+
+      console.log("✅ Refund processed from backend:", refund);
+    }
+
+    // STEP E: HANDLE BUSINESS LOGIC RESPONSES FROM THE FUNCTION
+    if (data) {
+      console.log("RPC Data:", data);
+
+      switch (data.status) {
+        case 'success':
+          return res.status(200).json(data);
+
+        case 'already_processed':
+          return res.status(200).json({
+            message: "Order already finalized.",
+            order_id: data.order_id,
+            current_status: data.current_status || 'Placed'
+          });
+
+        case 'failed':
+        case 'payment_failed':
+          return res.status(400).json(data);
+
+        case 'item_not_found':
+          return res.status(404).json(data);
+
+        case 'item_deactivated':
+          return res.status(410).json(data);
+
+        default:
+          console.error('❓ Unexpected RPC status:', data.status);
+          return res.status(500).json({ message: 'Unknown RPC response received.' });
+      }
+    }
+
+    // STEP 3: Fallback if no data and no error
+    return res.status(500).json({ message: 'Unexpected state: no RPC data and no error.' });
+
+  } catch (err) {
+    console.error('🔥 Fatal Error in /api/finalize-order:', err);
+    res.status(500).json({ message: 'Internal server error during order finalization.' });
+  }
+}
+
+export const codOrderCreation = async (req, res) => {
+  try {
+    const {
+      orderPayload
+    } = req.body;
+
+    const { user } = req;
+
+    if (orderPayload?.p_user_id !== user?.id) {
+      return res.status(403).json({ message: 'User is not authorized to create order.' });
     }
 
     // STEP B: DECREASE WALLET BALANCE (if wallet is used)
@@ -192,16 +351,12 @@ export const finalisePayment = async (req, res) => {
 
     // STEP C: PREPARE AND CALL THE SECURE RPC FUNCTION
     const rpcParams = {
-      ...orderPayload,
-      // Use the verified payment ID for online, or 'cod' for cash
-      p_payment_id: paymentType === 'online' ? razorpay_payment_id : 'cod',
-      p_razorpay_order_id: paymentType === 'online' ? razorpay_order_id : 'cod',
-      p_paid_amount: paymentType === 'online' ? razorpayAmount : 0,
+      ...orderPayload
     };
-  console.log('RazorPay amount sent by backend by maaz', razorpayAmount);
+
     // Assuming you have a Supabase service role client initialized
     // const supabaseAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
-    const { data, error } = await supabase.rpc("handle_place_order_test", rpcParams);
+    const { data, error } = await supabase.rpc("create_order", rpcParams);
 
     // STEP D: HANDLE POSTGRES-LEVEL ERRORS (e.g., connection issue, RLS violation)
     if (error) {
@@ -217,38 +372,36 @@ export const finalisePayment = async (req, res) => {
     }
 
     // STEP E: HANDLE BUSINESS LOGIC RESPONSES FROM THE FUNCTION
-    if (data) {
-      console.log("RPC Data:", data);
-      // Use a switch to handle all possible statuses returned by the RPC function
-      switch (data.status) {
-        case 'success':
-          console.log('✅ Order successfully created in DB with ID:', data.order_id);
-          return res.status(200).json(data); // 200 OK
-
-        case 'price_change':
-          console.log('⚠️ Price change detected.');
-          return res.status(409).json(data); // 409 Conflict
-
-        case 'item_deactivated':
-          console.log('🚫 Item deactivated.');
-          return res.status(410).json(data); // 410 Gone
-
-        case 'item_not_found':
-          console.log('🔍 Item not found.');
-          return res.status(404).json(data); // 404 Not Found
-
-        default:
-          // Handle any unexpected but non-error status
-          console.error('❓ Unexpected status from RPC:', data.status);
-          return res.status(500).json({ message: 'Received an unknown response from the server.' });
-      }
+    if (!data) {
+      return res.status(500).json({ message: 'Pending order creation failed.' });
     }
 
-    // Fallback for an unexpected state where there's no data and no error
-    return res.status(500).json({ message: 'An unknown error occurred.' });
+    switch (data.status) {
+      case 'success':
+        console.log('✅ Pending order created with ID:', data.order_id);
+        break; // continue to Razorpay creation
+
+      case 'item_not_found':
+        return res.status(404).json(data);
+
+      case 'item_deactivated':
+        return res.status(410).json(data);
+
+      case 'price_change':
+        return res.status(409).json(data);
+
+      default:
+        return res.status(500).json({ message: 'Unexpected response from RPC.' });
+    }
+
+    // ✅ Log success, continue to Razorpay order creation
+    console.log('✅ Pending order created with ID:', data.order_id);
+
+    // STEP 3: Fallback if no data and no error
+    return res.status(500).json({ message: 'Unexpected state: no RPC data and no error.' });
 
   } catch (err) {
-    console.error('🔥 Fatal Error in /api/finalize-order:', err);
+    console.error('🔥 Fatal Error in /api/cod-order-creation:', err);
     res.status(500).json({ message: 'Internal server error during order finalization.' });
   }
 }
