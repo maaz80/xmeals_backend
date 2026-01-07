@@ -217,9 +217,9 @@ export const finalisePayment = async (req, res) => {
     const rpcParams = {
       p_order_id: pending_order_id,
       p_payment_type: orderPayload.p_payment_type,
-      p_payment_id: paymentType === 'online' ? razorpay_payment_id : 'cod',
-      p_razorpay_order_id: paymentType === 'online' ? razorpay_order_id : null,
-      p_paid_amount: paymentType === 'online' ? razorpayAmount : 0,
+      p_payment_id: razorpay_payment_id,
+      p_razorpay_order_id: razorpay_order_id,
+      p_paid_amount: razorpayAmount,
       p_user_id: orderPayload.p_user_id,
       p_address_id: orderPayload.p_address_id,
       p_cart_vendor_id: orderPayload.p_cart_vendor_id,

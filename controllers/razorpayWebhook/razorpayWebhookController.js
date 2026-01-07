@@ -52,7 +52,7 @@ export const razorpayWebhook = async (req, res) => {
                          .eq('u_id', orderData.u_id)
                          .eq('vendor_id', orderData.v_id);
 
-                    orderPayload = {
+                     orderPayload = {
                          p_order_id: internalOrderId,
                          p_payment_type: 'online',
                          p_payment_id: payment.id,
@@ -63,12 +63,12 @@ export const razorpayWebhook = async (req, res) => {
                          p_cart_vendor_id: orderData.v_id,
                          p_cart_items: JSON.stringify(cartItems),
                          p_tax_collected: orderData.tax_collected,
-
+                        
                     };
 
                     txnPayload = {
-                         p_razorpay_order_id: order.id,
-                         p_payment_id: payment.id,
+                         p_order_id: order.id,
+                         p_transaction_id: payment.id,
                          p_order_status: "order.paid",
                     };
 
@@ -80,8 +80,8 @@ export const razorpayWebhook = async (req, res) => {
                     const payment = payload.payload.payment.entity;
                     const order = payload.payload.order.entity;
                     txnPayload = {
-                         p_razorpay_order_id: order.id,
-                         p_payment_id: payment.id,
+                         p_order_id: order.id,
+                         p_transaction_id: payment.id,
                          p_order_status: "payment.failed",
                     };
 
@@ -113,7 +113,7 @@ export const razorpayWebhook = async (req, res) => {
 
           /* ---------------- FINALIZE ORDER (ONLY order.paid) ---------------- */
           if (shouldFinalizeOrder) {
-               const { data, error: placeError } = await supabase.rpc(
+               const {data,  error: placeError } = await supabase.rpc(
                     "verify_payment",
                     orderPayload
                );
@@ -127,7 +127,7 @@ export const razorpayWebhook = async (req, res) => {
 
                     console.log("✅ Refund processed from webhook:", refund);
                }
-
+               
                if (placeError) {
                     console.error("❌ Order finalize RPC failed:", placeError.message);
                     return res.status(500).json({ success: false });
