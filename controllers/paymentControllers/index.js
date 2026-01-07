@@ -229,15 +229,28 @@ export const finalisePayment = async (req, res) => {
 
     // STEP D: HANDLE POSTGRES-LEVEL ERRORS (e.g., connection issue, RLS violation)
     if (error) {
-      console.error('❌ Supabase RPC Error:', error);
-      try {
-        // The error message from `RAISE EXCEPTION` is a JSON string
-        const parsedError = JSON.parse(error.message);
-        return res.status(parsedError.status || 500).json(parsedError);
-      } catch (e) {
-        // If parsing fails, it's a generic error
-        return res.status(500).json({ message: "Failed to place order after payment." });
+      console.error("❌ Supabase RPC Error:", error);
+
+      // Default fallback
+      let statusCode = 400;
+      let message = error.message || "Order finalization failed";
+
+      // If message is JSON, parse it
+      if (typeof error.message === "string" && error.message.trim().startsWith("{")) {
+        try {
+          const parsed = JSON.parse(error.message);
+          statusCode = parsed.status || statusCode;
+          return res.status(statusCode).json(parsed);
+        } catch (_) {
+          return res.status(500).json({ message: "Failed to place order after payment." });
+        }
       }
+
+      // Plain postgres exception
+      return res.status(statusCode).json({
+        status: statusCode,
+        message
+      });
     }
 
     if (data?.status === 'already_failed' && data.refund_amount > 0) {
@@ -360,25 +373,39 @@ export const codOrderCreation = async (req, res) => {
 
     // STEP D: HANDLE POSTGRES-LEVEL ERRORS (e.g., connection issue, RLS violation)
     if (error) {
-      console.error('❌ Supabase RPC Error:', error);
-      try {
-        // The error message from `RAISE EXCEPTION` is a JSON string
-        const parsedError = JSON.parse(error.message);
-        return res.status(parsedError.status || 500).json(parsedError);
-      } catch (e) {
-        // If parsing fails, it's a generic error
-        return res.status(500).json({ message: "Failed to place order after payment." });
+      console.error("❌ Supabase RPC Error:", error);
+
+      // Default fallback
+      let statusCode = 400;
+      let message = error.message || "Order finalization failed";
+
+      // If message is JSON, parse it
+      if (typeof error.message === "string" && error.message.trim().startsWith("{")) {
+        try {
+          const parsed = JSON.parse(error.message);
+          statusCode = parsed.status || statusCode;
+          return res.status(statusCode).json(parsed);
+        } catch (_) {
+          return res.status(500).json({ message: "Failed to place order after payment." });
+        }
       }
+
+      // Plain postgres exception
+      return res.status(statusCode).json({
+        status: statusCode,
+        message
+      });
     }
+
 
     // STEP E: HANDLE BUSINESS LOGIC RESPONSES FROM THE FUNCTION
     if (!data) {
-      return res.status(500).json({ message: 'Pending order creation failed.' });
+      return res.status(500).json({ message: 'Order creation failed.' });
     }
 
     switch (data.status) {
       case 'success':
-        console.log('✅ Pending order created with ID:', data.order_id);
+        console.log('✅ Order created with ID:', data.order_id);
         break; // continue to Razorpay creation
 
       case 'item_not_found':
@@ -395,7 +422,7 @@ export const codOrderCreation = async (req, res) => {
     }
 
     // ✅ Log success, continue to Razorpay order creation
-    console.log('✅ Pending order created with ID:', data.order_id);
+    console.log('✅ Order created with ID:', data.order_id);
 
     // STEP 3: Fallback if no data and no error
     return res.status(500).json({ message: 'Unexpected state: no RPC data and no error.' });
