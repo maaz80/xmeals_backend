@@ -24,6 +24,7 @@ export const razorpayWebhook = async (req, res) => {
           console.log("⚡ Razorpay event:", event);
 
           let txnPayload = null;
+          let orderPayload = null;
           let shouldFinalizeOrder = false;
 
           /* ---------------- Event Routing ---------------- */
@@ -51,7 +52,7 @@ export const razorpayWebhook = async (req, res) => {
                          .eq('u_id', orderData.u_id)
                          .eq('vendor_id', orderData.v_id);
 
-                    txnPayload = {
+                    orderPayload = {
                          p_order_id: internalOrderId,
                          p_payment_type: 'online',
                          p_payment_id: payment.id,
@@ -63,6 +64,12 @@ export const razorpayWebhook = async (req, res) => {
                          p_cart_items: JSON.stringify(cartItems),
                          p_tax_collected: orderData.tax_collected,
 
+                    };
+
+                    txnPayload = {
+                         p_razorpay_order_id: payment.order_id,
+                         p_payment_id: payment.id,
+                         p_order_status: "order.paid",
                     };
 
                     shouldFinalizeOrder = true;
@@ -108,7 +115,7 @@ export const razorpayWebhook = async (req, res) => {
           if (shouldFinalizeOrder) {
                const { data, error: placeError } = await supabase.rpc(
                     "verify_payment",
-                    txnPayload
+                    orderPayload
                );
                if (data?.status === 'failed' && data.refund_amount > 0) {
                     console.log("💰 Refund required for order:", data.order_id);
