@@ -99,38 +99,38 @@ export const initilisePayment = async (req, res) => {
     // ✅ Log success, continue to Razorpay order creation
     console.log('✅ Pending order created with ID:', orderData.order_id);
 
-    // ✅ Create Razorpay payment order
-    const receipt = `rcpt_${crypto.randomBytes(12).toString('hex')}`;
-    const options = {
-      amount: Math.round(amount * 100),
-      currency,
-      receipt,
-      notes: {
-        internal_order_id: orderData.order_id, // <--- Pass your DB ID here
-      }
+      // ✅ Create Razorpay payment order
+      const receipt = `rcpt_${crypto.randomBytes(12).toString('hex')}`;
+      const options = {
+        amount: Math.round(amount * 100),
+        currency,
+        receipt,
+        notes: {
+          internal_order_id: orderData.order_id, // <--- Pass your DB ID here
+        }
 
-    };
+      };
 
-    const order = await razorpay.orders.create(options);
+      const order = await razorpay.orders.create(options);
 
-    const payloadHash = crypto.createHash('sha256', process.env.RAZORPAY_KEY_SECRET)
-      .update(JSON.stringify(orderPayload))
-      .digest('hex');
+      const payloadHash = crypto.createHash('sha256', process.env.RAZORPAY_KEY_SECRET)
+        .update(JSON.stringify(orderPayload))
+        .digest('hex');
 
-    const paymentToken = jwt.sign({
-      hash: payloadHash,
-      razorpay_order_id: order.id,
-      user_id: user?.id
-    }, process.env.JWT_SECRET, { expiresIn: '15m' });
+      const paymentToken = jwt.sign({
+        hash: payloadHash,
+        razorpay_order_id: order.id,
+        user_id: user?.id
+      }, process.env.JWT_SECRET, { expiresIn: '15m' });
 
-    // ✅ Return Razorpay order + pending_order_id
-    return res.status(200).json({
-      id: order.id,
-      amount: order.amount,
-      currency: order.currency,
-      token: paymentToken,
-      pending_order_id: orderData.order_id
-    });
+      // ✅ Return Razorpay order + pending_order_id
+      return res.status(200).json({
+        id: order.id,
+        amount: order.amount,
+        currency: order.currency,
+        token: paymentToken,
+        pending_order_id: orderData.order_id
+      });
 
   } catch (err) {
     console.error('🔥 Error initiating payment:', err);
@@ -217,9 +217,9 @@ export const finalisePayment = async (req, res) => {
     const rpcParams = {
       p_order_id: pending_order_id,
       p_payment_type: orderPayload.p_payment_type,
-      p_payment_id: razorpay_payment_id,
-      p_razorpay_order_id: razorpay_order_id,
-      p_paid_amount: razorpayAmount,
+      p_payment_id:  razorpay_payment_id,
+      p_razorpay_order_id: razorpay_order_id ,
+      p_paid_amount:  razorpayAmount,
       p_user_id: orderPayload.p_user_id,
       p_address_id: orderPayload.p_address_id,
       p_cart_vendor_id: orderPayload.p_cart_vendor_id,
@@ -292,6 +292,13 @@ export const finalisePayment = async (req, res) => {
 
         case 'item_deactivated':
           return res.status(410).json(data);
+
+        case 'price_changed':
+          return res.status(409).json({
+            status: 'price_changed',
+            message: data.message || 'Prices have changed',
+            changed_items: data.changed_items
+          });
 
         default:
           console.error('❓ Unexpected RPC status:', data.status);
