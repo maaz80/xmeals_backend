@@ -105,7 +105,20 @@ export const razorpayWebhook = async (req, res) => {
                }
           }
 
+          /* ---------------- TRANSACTION RPC (ALWAYS) ---------------- */
+          const { error: txnError } = await supabase.rpc(
+               "razorpay_transaction_record_rpc",
+               txnPayload
+          );
 
+          if (txnError) {
+               console.error("❌ Transaction RPC failed:", txnError.message);
+               // webhook retry needed
+               return res.status(500).json({ success: false });
+          }
+          if (!txnError) {
+               console.log("✅ Transaction recorded:", txnPayload.p_transaction_id);
+          }
           /* ---------------- FINALIZE ORDER (ONLY order.paid) ---------------- */
           if (shouldFinalizeOrder) {
                const { data, error: placeError } = await supabase.rpc(
@@ -131,17 +144,6 @@ export const razorpayWebhook = async (req, res) => {
                console.log("✅ Order finalized:", txnPayload.p_order_id);
           }
 
-          /* ---------------- TRANSACTION RPC (ALWAYS) ---------------- */
-          const { error: txnError } = await supabase.rpc(
-               "razorpay_transaction_record_rpc",
-               txnPayload
-          );
-
-          if (txnError) {
-               console.error("❌ Transaction RPC failed:", txnError.message);
-               // webhook retry needed
-               return res.status(500).json({ success: false });
-          }
 
           return res.status(200).json({ success: true });
 
