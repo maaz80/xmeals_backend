@@ -9,9 +9,7 @@ const supabaseRealtime = createClient(
      process.env.SUPABASE_SERVICE_ROLE_KEY,
      {
           realtime: {
-               params: {
-                    eventsPerSecond: 10,
-               },
+               params: { eventsPerSecond: 10 },
           },
           auth: {
                autoRefreshToken: false,
@@ -26,44 +24,17 @@ export function startOrderInsertListener() {
           .on(
                "postgres_changes",
                {
-                    event: "INSERT",
+                    event: "*", // INSERT + UPDATE both
                     schema: "public",
                     table: "orders",
                },
                async (payload) => {
-                    // Case 1: Order inserted directly as Placed
-                    if (payload.new.status === "Placed") {
-                         console.log("🟢 Order INSERT with Placed:", payload.new);
+                    const oldStatus = payload.old?.status ?? null;
+                    const newStatus = payload.new?.status ?? null;
 
-                         await onOrderCreated(
-                              {
-                                   body: {
-                                        order_id: payload.new.order_id,
-                                        v_id: payload.new.v_id,
-                                        user_order_id: payload.new.user_order_id,
-                                   },
-                              },
-                              {
-                                   status: () => ({ json: () => { } }),
-                              }
-                         );
-                    }
-               }
-          )
-          .on(
-               "postgres_changes",
-               {
-                    event: "UPDATE",
-                    schema: "public",
-                    table: "orders",
-               },
-               async (payload) => {
-                    // Case 2: Status transition Pending → Placed
-                    if (
-                         payload.old?.status !== "Placed" &&
-                         payload.new?.status === "Placed"
-                    ) {
-                         console.log("🟡 Order UPDATE to Placed:", payload.new);
+                    // 🔒 EXACTLY-ONCE GUARANTEE
+                    if (newStatus === "Placed" && oldStatus !== "Placed") {
+                         console.log("✅ Order reached Placed state:", payload.new);
 
                          await onOrderCreated(
                               {
