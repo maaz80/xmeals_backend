@@ -52,16 +52,22 @@ export const razorpayWebhook = async (req, res) => {
                          .eq('u_id', orderData.u_id)
                          .eq('vendor_id', orderData.v_id);
 
+                    const cartItemsForRpc = cartItems.map(ci => ({
+                         item_id: ci.item_id,
+                         quantity: ci.quantity,
+                         client_price: ci.price
+                    }));
+
                     orderPayload = {
                          p_order_id: internalOrderId,
                          p_payment_type: 'online',
                          p_payment_id: payment.id,
                          p_razorpay_order_id: order.id,
-                         p_paid_amount: payment.amount / 100,
+                         p_paid_amount: payment.amount,
                          p_user_id: orderData.u_id,
                          p_address_id: orderData.addr_id,
                          p_cart_vendor_id: orderData.v_id,
-                         p_cart_items: JSON.stringify(cartItems),
+                         p_cart_items: cartItemsForRpc,
                          p_tax_collected: orderData.tax_collected,
 
                     };
@@ -110,7 +116,7 @@ export const razorpayWebhook = async (req, res) => {
                     console.log("💰 Refund required for order:", data.order_id);
 
                     const refund = await razorpay.payments.refund(data.payment_id, {
-                         amount: data.refund_amount * 100,
+                         amount: data.refund_amount,
                          refund_to_source: true
                     });
 
