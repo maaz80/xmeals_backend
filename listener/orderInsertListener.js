@@ -20,50 +20,20 @@ const supabaseRealtime = createClient(
      }
 );
 
-export function startOrderInsertListener() {
+export function startOrderPlacedListener() {
      supabaseRealtime
           .channel("orders-placed-channel")
           .on(
                "postgres_changes",
                {
-                    event: "INSERT",
+                    event: "*", // Listen to both INSERT and UPDATE
                     schema: "public",
                     table: "orders",
                },
                async (payload) => {
-                    // Case 1: Order inserted directly as Placed
-                    if (payload.new.status === "Placed") {
-                         console.log("🟢 Order INSERT with Placed:", payload.new);
-
-                         await onOrderCreated(
-                              {
-                                   body: {
-                                        order_id: payload.new.order_id,
-                                        v_id: payload.new.v_id,
-                                        user_order_id: payload.new.user_order_id,
-                                   },
-                              },
-                              {
-                                   status: () => ({ json: () => { } }),
-                              }
-                         );
-                    }
-               }
-          )
-          .on(
-               "postgres_changes",
-               {
-                    event: "UPDATE",
-                    schema: "public",
-                    table: "orders",
-               },
-               async (payload) => {
-                    // Case 2: Status transition Pending → Placed
-                    if (
-                         payload.old?.status !== "Placed" &&
-                         payload.new?.status === "Placed"
-                    ) {
-                         console.log("🟡 Order UPDATE to Placed:", payload.new);
+                    // ✅ Run only if new status is 'Placed'
+                    if (payload.new?.status === "Placed") {
+                         console.log("🟢 Order with Placed status:", payload.new);
 
                          await onOrderCreated(
                               {
