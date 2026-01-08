@@ -9,9 +9,9 @@ import razorpayWebhookRoute from "./routes/razorpayWebhookRoute.js";
 import orderRoutes from './routes/orderRoutes.js'
 import whatsappRoutes from './routes/whatsappRoutes.js'
 import './controllers/orderController/orderTimeWorker.js'
-import { startOrderPlacedListener } from "./listener/orderInsertListener.js";
+import { startOrderInsertListener } from "./listener/orderInsertListener.js";
 // Disable bodyParser ONLY for Razorpay Webhook
-startOrderPlacedListener();
+startOrderInsertListener();
 dotenv.config();
 const app = express();
 const allowedOrigins = process.env.ORIGIN?.split(",").map(origin => origin.trim());
