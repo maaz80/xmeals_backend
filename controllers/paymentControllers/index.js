@@ -381,7 +381,7 @@ export const codOrderCreation = async (req, res) => {
 
       // Default fallback
       let statusCode = 400;
-      let message = error.message || "Order finalization failed";
+      let message = error.message || "Order creation failed";
 
       // If message is JSON, parse it
       if (typeof error.message === "string" && error.message.trim().startsWith("{")) {
