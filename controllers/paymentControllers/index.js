@@ -97,7 +97,7 @@ export const initilisePayment = async (req, res) => {
     }
 
     // ✅ Log success, continue to Razorpay order creation
-    console.log('✅ Pending order created with ID:', orderData.order_id);
+    // console.log('✅ Pending order created with ID:', orderData.order_id);
 
       // ✅ Create Razorpay payment order
       const receipt = `rcpt_${crypto.randomBytes(12).toString('hex')}`;

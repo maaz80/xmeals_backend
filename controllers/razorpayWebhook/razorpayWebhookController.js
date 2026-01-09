@@ -125,7 +125,7 @@ export const razorpayWebhook = async (req, res) => {
                     "verify_payment",
                     orderPayload
                );
-               if (data?.status === 'failed' && data.refund_amount > 0) {
+               if (data?.status === 'already_failed' && data.refund_amount > 0) {
                     console.log("💰 Refund required for order:", data.order_id);
 
                     const refund = await razorpay.payments.refund(data.payment_id, {
@@ -137,7 +137,7 @@ export const razorpayWebhook = async (req, res) => {
                }
 
                if (placeError) {
-                    console.error("❌ Order finalize RPC failed:", placeError.message);
+                    console.error("❌ Order finalize RPC failed from webhook:", placeError.message);
                     return res.status(500).json({ success: false });
                }
 
