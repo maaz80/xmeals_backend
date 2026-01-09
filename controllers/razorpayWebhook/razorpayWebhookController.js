@@ -121,27 +121,27 @@ export const razorpayWebhook = async (req, res) => {
           }
           /* ---------------- FINALIZE ORDER (ONLY order.paid) ---------------- */
           if (shouldFinalizeOrder) {
-               // const { data, error: placeError } = await supabase.rpc(
-               //      "verify_payment",
-               //      orderPayload
-               // );
-               // if (data?.status === 'failed' && data.refund_amount > 0) {
-               //      console.log("💰 Refund required for order:", data.order_id);
+               const { data, error: placeError } = await supabase.rpc(
+                    "verify_payment",
+                    orderPayload
+               );
+               if (data?.status === 'failed' && data.refund_amount > 0) {
+                    console.log("💰 Refund required for order:", data.order_id);
 
-               //      const refund = await razorpay.payments.refund(data.payment_id, {
-               //           amount: data.refund_amount,
-               //           refund_to_source: true
-               //      });
+                    const refund = await razorpay.payments.refund(data.payment_id, {
+                         amount: data.refund_amount,
+                         refund_to_source: true
+                    });
 
-               //      console.log("✅ Refund processed from webhook:", refund);
-               // }
+                    console.log("✅ Refund processed from webhook:", refund);
+               }
 
-               // if (placeError) {
-               //      console.error("❌ Order finalize RPC failed:", placeError.message);
-               //      return res.status(500).json({ success: false });
-               // }
+               if (placeError) {
+                    console.error("❌ Order finalize RPC failed:", placeError.message);
+                    return res.status(500).json({ success: false });
+               }
 
-               // console.log("✅ Order finalized:", txnPayload.p_order_id);
+               console.log("✅ Order finalized from webhook:", txnPayload.p_order_id);
           }
 
 

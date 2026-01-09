@@ -44,11 +44,13 @@ export function startOrderInsertListener() {
                     const oldStatus = payload.old?.status;
                     const newStatus = payload.new?.status;
                     const waMessageId = payload.new?.wa_message_id;
+                    const razorpayOrderId = payload.new?.payment_gateway_order_id;
 
                     if (
                          oldStatus !== "Placed" &&
                          newStatus === "Placed" &&
-                         !waMessageId
+                         !waMessageId &&
+                         !razorpayOrderId
                     ) {
                          console.log("🟢 Status → PLACED");
 
