@@ -11,7 +11,7 @@ cron.schedule("*/1 * * * *", async () => {
           .from("orders")
           .select("*")
           .eq("status", "Placed") // sirf Placed
-          .is("wa_first_message_sent", null)
+          .is("wa_message_id", null)
           .limit(20);
 
      if (error) {
