@@ -18,8 +18,8 @@ export const razorpayWebhook = async (req, res) => {
           }
 
           /* ---------------- Parse Event ---------------- */
-          const payload = JSON.parse(req.body.toString());
-          const event = payload.event;
+          const cuspayload = JSON.parse(req.body.toString());
+          const event = cuspayload.event;
 
           console.log("⚡ Razorpay event:", event);
 
@@ -30,10 +30,9 @@ export const razorpayWebhook = async (req, res) => {
           /* ---------------- Event Routing ---------------- */
           switch (event) {
                case "order.paid": {
-                    const order = payload.payload.order.entity;
-                    const payment = payload.payload.payment.entity;
-                    const orderPayloadJson = payment.notes?.orderPayload;
-                    const internalOrderId = payment.notes?.internal_order_id;
+                    const order = cuspayload?.payload?.order?.entity;
+                    const payment = cuspayload?.payload?.payment?.entity;
+                    const internalOrderId = payment?.notes?.internal_order_id;
                     if (!internalOrderId) {
                          console.error("❌ internal_order_id missing");
                          return res.status(400).json({ success: false });
@@ -83,8 +82,8 @@ export const razorpayWebhook = async (req, res) => {
                }
 
                case "payment.failed": {
-                    const payment = payload.payload.payment.entity;
-                    const order = payload.payload.order.entity;
+                    const payment = cuspayload?.payload?.payment?.entity;
+                    const order = cuspayload?.payload?.order?.entity;
                     txnPayload = {
                          p_order_id: order.id,
                          p_transaction_id: payment.id,

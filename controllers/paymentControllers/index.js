@@ -66,7 +66,7 @@ export const initilisePayment = async (req, res) => {
     const { data: pendingOrder, error: rpcError } = await supabase.rpc("create_order", orderPayload);
 
     if (rpcError) {
-      console.error('❌ RPC error:', rpcError);
+      console.error('❌ RPC error, order creation failed:', rpcError);
       return res.status(400).json({ error: rpcError.message });
     }
 
@@ -234,7 +234,7 @@ export const finalisePayment = async (req, res) => {
     // STEP D: HANDLE POSTGRES-LEVEL ERRORS (e.g., connection issue, RLS violation)
     if (error) {
       console.error("❌ Supabase RPC Error:", error);
-
+      console.error('Order status changed to failed for order ID:', pending_order_id);
       // Default fallback
       let statusCode = 400;
       let message = error.message || "Order finalization failed";
@@ -270,8 +270,9 @@ export const finalisePayment = async (req, res) => {
 
     // STEP E: HANDLE BUSINESS LOGIC RESPONSES FROM THE FUNCTION
     if (data) {
-      console.log("RPC Data:", data);
-
+      console.log("RPC Data from backend:", data);
+      console.log('Order status changed to Placed for order ID:', pending_order_id);
+      
       switch (data.status) {
         case 'success':
           return res.status(200).json(data);
@@ -385,7 +386,7 @@ export const codOrderCreation = async (req, res) => {
     // STEP D: HANDLE POSTGRES-LEVEL ERRORS (e.g., connection issue, RLS violation)
     if (error) {
       console.error("❌ Supabase RPC Error:", error);
-
+      console.error('Order creation failed for order ID:', orderPayload?.p_order_id);
       // Default fallback
       let statusCode = 400;
       let message = error.message || "Order creation failed";
