@@ -9,7 +9,9 @@ const supabaseRealtime = createClient(
      process.env.SUPABASE_SERVICE_ROLE_KEY,
      {
           realtime: {
-               params: { eventsPerSecond: 10 },
+               params: {
+                    eventsPerSecond: 10,
+               },
           },
           auth: {
                autoRefreshToken: false,
@@ -17,9 +19,6 @@ const supabaseRealtime = createClient(
           },
      }
 );
-
-// 🔒 MEMORY LOCK (per order once)
-const processedOrders = new Set();
 
 export function startOrderInsertListener() {
      supabaseRealtime
@@ -32,34 +31,32 @@ export function startOrderInsertListener() {
                     table: "orders",
                },
                async (payload) => {
-                    const orderId = payload.new?.order_id;
                     const oldStatus = payload.old?.status;
                     const newStatus = payload.new?.status;
+                    const waMessageId = payload.new?.wa_message_id;
+                    const isSameStatusUpdate = payload.old?.status === payload.new?.status;
+                    // ✅ FINAL CONDITION
+                    if (
+                         !isSameStatusUpdate &&
+                         oldStatus !== "Placed" &&
+                         newStatus === "Placed" &&
+                         !waMessageId // null / empty
+                    ) {
+                         console.log("🟢 Status → PLACED & WhatsApp not sent yet");
 
-                    if (oldStatus !== "Placed" || newStatus !== "Placed") return;
-
-                    // ✅ HARD GUARANTEE: ek order sirf ek baar
-                    if (processedOrders.has(orderId)) {
-                         console.log("🔕 Already processed order", orderId);
-                         return;
-                    }
-
-                    processedOrders.add(orderId);
-
-                    console.log("🟢 Processing order once:", orderId);
-
-                    await onOrderCreated(
-                         {
-                              body: {
-                                   order_id: orderId,
-                                   v_id: payload.new.v_id,
-                                   user_order_id: payload.new.user_order_id,
+                         await onOrderCreated(
+                              {
+                                   body: {
+                                        order_id: payload.new.order_id,
+                                        v_id: payload.new.v_id,
+                                        user_order_id: payload.new.user_order_id,
+                                   },
                               },
-                         },
-                         {
-                              status: () => ({ json: () => { } }),
-                         }
-                    );
+                              {
+                                   status: () => ({ json: () => { } }),
+                              }
+                         );
+                    }
                }
           )
           .subscribe((status) => {
