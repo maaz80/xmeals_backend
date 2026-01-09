@@ -1,75 +1,75 @@
-// import { createClient } from "@supabase/supabase-js";
-// import dotenv from "dotenv";
-// import { onOrderCreated } from "../controllers/orderController/orderController.js";
+import { createClient } from "@supabase/supabase-js";
+import dotenv from "dotenv";
+import { onOrderCreated } from "../controllers/orderController/orderController.js";
 
-// dotenv.config();
+dotenv.config();
 
-// const supabaseRealtime = createClient(
-//      process.env.SUPABASE_URL,
-//      process.env.SUPABASE_SERVICE_ROLE_KEY,
-//      {
-//           realtime: {
-//                params: {
-//                     eventsPerSecond: 10,
-//                },
-//           },
-//           auth: {
-//                autoRefreshToken: false,
-//                persistSession: false,
-//           },
-//      }
-// );
+const supabaseRealtime = createClient(
+     process.env.SUPABASE_URL,
+     process.env.SUPABASE_SERVICE_ROLE_KEY,
+     {
+          realtime: {
+               params: {
+                    eventsPerSecond: 10,
+               },
+          },
+          auth: {
+               autoRefreshToken: false,
+               persistSession: false,
+          },
+     }
+);
 
-// let listenerStarted = false;
+let listenerStarted = false;
 
-// export function startOrderInsertListener() {
-//      if (listenerStarted) {
-//           console.log("⚠️ Order listener already running, skipping");
-//           return;
-//      }
+export function startOrderInsertListener() {
+     if (listenerStarted) {
+          console.log("⚠️ Order listener already running, skipping");
+          return;
+     }
 
-//      listenerStarted = true;
-//      console.log("✅ Starting order status placed listener");
+     listenerStarted = true;
+     console.log("✅ Starting order status placed listener");
 
-//      supabaseRealtime
-//           .channel("orders-status-placed-channel")
-//           .on(
-//                "postgres_changes",
-//                {
-//                     event: "UPDATE",
-//                     schema: "public",
-//                     table: "orders",
-//                },
-//                async (payload) => {
-//                     const oldStatus = payload.old?.status;
-//                     const newStatus = payload.new?.status;
-//                     const waMessageId = payload.new?.wa_message_id;
-//                     const razorpayOrderId = payload.new?.payment_gateway_order_id;
+     supabaseRealtime
+          .channel("orders-status-placed-channel")
+          .on(
+               "postgres_changes",
+               {
+                    event: "UPDATE",
+                    schema: "public",
+                    table: "orders",
+               },
+               async (payload) => {
+                    const oldStatus = payload.old?.status;
+                    const newStatus = payload.new?.status;
+                    const waMessageId = payload.new?.wa_message_id;
+                    const razorpayOrderId = payload.new?.payment_gateway_order_id;
 
-//                     if (
-//                          oldStatus !== "Placed" &&
-//                          newStatus === "Placed" &&
-//                          !waMessageId &&
-//                          razorpayOrderId
-//                     ) {
-//                          console.log("🟢 Status → PLACED");
+                    if (
+                         oldStatus !== "Placed" &&
+                         newStatus === "Placed" &&
+                         !waMessageId &&
+                         razorpayOrderId
+                    ) {
+                         console.log("🟢 Status → PLACED");
 
-//                          await onOrderCreated(
-//                               {
-//                                    body: {
-//                                         order_id: payload.new.order_id,
-//                                         v_id: payload.new.v_id,
-//                                         user_order_id: payload.new.user_order_id,
-//                                    },
-//                               },
-//                               {
-//                                    status: () => ({ json: () => { } }),
-//                               }
-//                          );
-//                     }
-//                }
-//           )
-//           .subscribe((status) => {
-//                console.log("Realtime subscription status:", status);
-//           });
-// }
+                         await onOrderCreated(
+                              {
+                                   body: {
+                                        order_id: payload.new.order_id,
+                                        v_id: payload.new.v_id,
+                                        user_order_id: payload.new.user_order_id,
+                                   },
+                              },
+                              {
+                                   status: () => ({ json: () => { } }),
+                              }
+                         );
+                    }
+               }
+          )
+          .subscribe((status) => {
+               console.log("Realtime subscription status:", status);
+          });
+}
