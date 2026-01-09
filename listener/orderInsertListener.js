@@ -20,7 +20,17 @@ const supabaseRealtime = createClient(
      }
 );
 
+let listenerStarted = false;
+
 export function startOrderInsertListener() {
+     if (listenerStarted) {
+          console.log("⚠️ Order listener already running, skipping");
+          return;
+     }
+
+     listenerStarted = true;
+     console.log("✅ Starting order status placed listener");
+
      supabaseRealtime
           .channel("orders-status-placed-channel")
           .on(
@@ -34,15 +44,13 @@ export function startOrderInsertListener() {
                     const oldStatus = payload.old?.status;
                     const newStatus = payload.new?.status;
                     const waMessageId = payload.new?.wa_message_id;
-                    const isSameStatusUpdate = payload.old?.status === payload.new?.status;
-                    // ✅ FINAL CONDITION
+
                     if (
-                         !isSameStatusUpdate &&
                          oldStatus !== "Placed" &&
                          newStatus === "Placed" &&
-                         !waMessageId // null / empty
+                         !waMessageId
                     ) {
-                         console.log("🟢 Status → PLACED & WhatsApp not sent yet");
+                         console.log("🟢 Status → PLACED");
 
                          await onOrderCreated(
                               {
