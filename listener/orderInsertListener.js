@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
 import { onOrderCreated } from "../controllers/orderController/orderController.js";
+import { supabase } from "../config/supbase.js";
 
 dotenv.config();
 
@@ -33,30 +34,36 @@ export function startOrderInsertListener() {
                async (payload) => {
                     const oldStatus = payload.old?.status;
                     const newStatus = payload.new?.status;
-                    const waMessageId = payload.new?.wa_message_id;
-                    const isSameStatusUpdate = payload.old?.status === payload.new?.status;
-                    // ✅ FINAL CONDITION
-                    if (
-                         !isSameStatusUpdate &&
-                         oldStatus !== "Placed" &&
-                         newStatus === "Placed" &&
-                         !waMessageId // null / empty
-                    ) {
-                         console.log("🟢 Status → PLACED & WhatsApp not sent yet");
 
-                         await onOrderCreated(
-                              {
-                                   body: {
-                                        order_id: payload.new.order_id,
-                                        v_id: payload.new.v_id,
-                                        user_order_id: payload.new.user_order_id,
-                                   },
-                              },
-                              {
-                                   status: () => ({ json: () => { } }),
-                              }
-                         );
+                    if (oldStatus !== "Placed" || newStatus !== "Placed") return;
+
+                    const { data: lockedOrder } = await supabase
+                         .from("orders")
+                         .update({ wa_message_id: "__LOCK__" })
+                         .eq("order_id", payload.new.order_id)
+                         .is("wa_message_id", null)
+                         .select()
+                         .single();
+
+                    if (!lockedOrder) {
+                         console.log("🔕 WhatsApp already locked/sent for order", payload.new.order_id);
+                         return;
                     }
+
+                    console.log("🟢 LOCK ACQUIRED → sending WhatsApp");
+
+                    await onOrderCreated(
+                         {
+                              body: {
+                                   order_id: lockedOrder.order_id,
+                                   v_id: lockedOrder.v_id,
+                                   user_order_id: lockedOrder.user_order_id,
+                              },
+                         },
+                         {
+                              status: () => ({ json: () => { } }),
+                         }
+                    );
                }
           )
           .subscribe((status) => {
