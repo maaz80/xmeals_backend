@@ -22,30 +22,35 @@ const supabaseRealtime = createClient(
 
 export function startOrderInsertListener() {
      supabaseRealtime
-          .channel("orders-insert-channel")
+          .channel("orders-status-placed-channel")
           .on(
                "postgres_changes",
                {
-                    event: "INSERT",
+                    event: "UPDATE",
                     schema: "public",
                     table: "orders",
                },
                async (payload) => {
-                    console.log("🟢 Order INSERT realtime:", payload.new);
+                    const oldStatus = payload.old?.status;
+                    const newStatus = payload.new?.status;
 
-                    // backend logic reuse
-                    await onOrderCreated(
-                         {
-                              body: {
-                                   order_id: payload.new.order_id,
-                                   v_id: payload.new.v_id,
-                                   user_order_id: payload.new.user_order_id,
+                    // ✅ CONDITION
+                    if (oldStatus !== "Placed" && newStatus === "Placed") {
+                         console.log("🟢 Order status changed to PLACED:", payload.new);
+
+                         await onOrderCreated(
+                              {
+                                   body: {
+                                        order_id: payload.new.order_id,
+                                        v_id: payload.new.v_id,
+                                        user_order_id: payload.new.user_order_id,
+                                   },
                               },
-                         },
-                         {
-                              status: () => ({ json: () => { } }),
-                         }
-                    );
+                              {
+                                   status: () => ({ json: () => { } }),
+                              }
+                         );
+                    }
                }
           )
           .subscribe((status) => {
