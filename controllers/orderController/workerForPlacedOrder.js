@@ -19,8 +19,6 @@ cron.schedule("*/1 * * * *", async () => {
           return;
      }
 
-     console.log("🟢 Status → PLACED");
-
      for (const order of orders) {
           try {
 
