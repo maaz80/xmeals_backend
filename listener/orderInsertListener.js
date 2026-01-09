@@ -50,7 +50,7 @@ export function startOrderInsertListener() {
                          oldStatus !== "Placed" &&
                          newStatus === "Placed" &&
                          !waMessageId &&
-                         !razorpayOrderId
+                         razorpayOrderId
                     ) {
                          console.log("🟢 Status → PLACED");
 
