@@ -47,7 +47,7 @@ export function startOrderInsertListener() {
                     const razorpayOrderId = payload.new?.payment_gateway_order_id;
 
                     if (
-                         oldStatus !== "Placed" &&
+                         oldStatus === "pending" &&
                          newStatus === "Placed" &&
                          !waMessageId &&
                          razorpayOrderId
