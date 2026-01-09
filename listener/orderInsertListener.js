@@ -53,6 +53,10 @@ export function startOrderInsertListener() {
                          razorpayOrderId
                     ) {
                          console.log("🟢 Status → PLACED");
+                         console.log('Old status', oldStatus);
+                         console.log('New status', newStatus);
+
+
 
                          await onOrderCreated(
                               {
