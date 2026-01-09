@@ -33,10 +33,16 @@ export function startOrderInsertListener() {
                async (payload) => {
                     const oldStatus = payload.old?.status;
                     const newStatus = payload.new?.status;
-
-                    // ✅ CONDITION
-                    if (oldStatus !== "Placed" && newStatus === "Placed") {
-                         console.log("🟢 Order status changed to PLACED:", payload.new);
+                    const waMessageId = payload.new?.wa_message_id;
+                    const isSameStatusUpdate = payload.old?.status === payload.new?.status;
+                    // ✅ FINAL CONDITION
+                    if (
+                         !isSameStatusUpdate &&
+                         oldStatus !== "Placed" &&
+                         newStatus === "Placed" &&
+                         !waMessageId // null / empty
+                    ) {
+                         console.log("🟢 Status → PLACED & WhatsApp not sent yet");
 
                          await onOrderCreated(
                               {
