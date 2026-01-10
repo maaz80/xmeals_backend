@@ -391,7 +391,8 @@ export const codOrderCreation = async (req, res) => {
 
     // STEP C: PREPARE AND CALL THE SECURE RPC FUNCTION
     const rpcParams = {
-      ...orderPayload
+      ...orderPayload,
+      p_razorpay_order_id: "cod",
     };
 
     // Assuming you have a Supabase service role client initialized
