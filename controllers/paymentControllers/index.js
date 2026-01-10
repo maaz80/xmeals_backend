@@ -116,6 +116,41 @@ export const initilisePayment = async (req, res) => {
           changed_items: orderData.changed_items
         });
 
+      case "vendor_not_found":
+        return res.status(404).json({
+          status: "vendor_not_found",
+          message: orderData.message
+        });
+
+      // 🏪 VENDOR UNAVAILABLE
+      case "vendor_unavailable":
+        return res.status(409).json({
+          status: "vendor_unavailable",
+          message: orderData.message
+        });
+
+      // 📍 ADDRESS ISSUE
+      case "address_not_found":
+        return res.status(404).json({
+          status: "address_not_found",
+          message: orderData.message
+        });
+
+      // 💸 MIN ORDER FAIL
+      case "min_order_fail":
+        return res.status(400).json({
+          status: "min_order_fail",
+          message: orderData.message
+        });
+
+      // 🚫 COD NOT ALLOWED
+      case "cod_unavailable":
+        return res.status(409).json({
+          status: "cod_unavailable",
+          message: orderData.message
+        });
+
+
       default:
         return res.status(500).json({ message: 'Unexpected response from RPC.' });
     }
@@ -281,45 +316,102 @@ export const finalisePayment = async (req, res) => {
       console.log('Order status changed to Placed for order ID:', pending_order_id);
 
       switch (orderData.status) {
-        case 'success':
-          return res.status(200).json(orderData);
 
-        case 'already_processed':
+        // ✅ SUCCESS
+        case "success":
           return res.status(200).json({
-            message: "Order already finalized.",
+            status: "success",
+            order_id: orderData.order_id
+          });
+
+        // 🔁 ALREADY PROCESSED
+        case "already_processed":
+          return res.status(200).json({
+            status: "already_processed",
+            order_id: orderData.order_id
+          });
+
+        // 🔁 ALREADY FAILED (refund flow)
+        case "already_failed":
+          return res.status(409).json({
+            status: "already_failed",
+            message: orderData.message,
             order_id: orderData.order_id,
-            current_status: orderData.current_status || 'Placed'
+            refund_amount: orderData.refund_amount
           });
 
-        case 'failed':
-        case 'payment_failed':
-          return res.status(400).json(orderData);
-
-        case 'item_not_found':
-          return res.status(409).json({
-            status: 'v_unavailable_items',
-            message: orderData.message || 'Some items are unavailable.',
-            changed_items: orderData.v_unavailable_items
+        // 🏪 VENDOR NOT FOUND
+        case "vendor_not_found":
+          return res.status(404).json({
+            status: "vendor_not_found",
+            message: orderData.message
           });
 
-        case 'item_deactivated':
+        // 🏪 VENDOR UNAVAILABLE
+        case "vendor_unavailable":
           return res.status(409).json({
-            status: 'item_deactivated',
-            message: orderData.message || 'Some items had been deactivated.',
-            changed_items: orderData.deactivated_items
+            status: "vendor_unavailable",
+            message: orderData.message
           });
 
-        case 'price_changed':
+        // 📍 ADDRESS NOT FOUND
+        case "address_not_found":
+          return res.status(404).json({
+            status: "address_not_found",
+            message: orderData.message
+          });
+
+        // 🚫 ITEM NOT FOUND
+        case "item_not_found":
           return res.status(409).json({
-            status: 'price_change',
-            message: orderData.message || 'Prices have changed',
+            status: "item_not_found",
+            message: orderData.message,
+            unavailable_items: orderData.unavailable_items
+          });
+
+        // 🚫 ITEM DEACTIVATED
+        case "item_deactivated":
+          return res.status(409).json({
+            status: "item_deactivated",
+            message: orderData.message,
+            deactivated_items: orderData.deactivated_items
+          });
+
+        // 🔄 PRICE CHANGED
+        case "price_changed":
+          return res.status(409).json({
+            status: "price_change",
+            message: orderData.message,
             changed_items: orderData.changed_items
           });
 
+        // 💸 MIN ORDER FAIL
+        case "min_order_fail":
+          return res.status(400).json({
+            status: "min_order_fail",
+            message: orderData.message
+          });
+
+        // 💳 PAYMENT FAILED
+        case "payment_failed":
+          return res.status(402).json({
+            status: "payment_failed",
+            reason: orderData.reason,
+            order_id: orderData.order_id,
+            expected_amount: orderData.expected_amount,
+            paid_amount: orderData.paid_amount,
+            difference_paise: orderData.difference_paise
+          });
+
+        // ❌ SAFETY NET
         default:
-          console.error('❓ Unexpected RPC status:', orderData.status);
-          return res.status(500).json({ message: 'Unknown RPC response received.' });
+          console.error("❌ Unknown verify_payment RPC response:", orderData);
+          return res.status(500).json({
+            status: "unknown_error",
+            message: "Unexpected response from payment verification."
+          });
       }
+
     }
 
     // STEP 3: Fallback if no data and no error
@@ -433,12 +525,8 @@ export const codOrderCreation = async (req, res) => {
 
     switch (orderData.status) {
       case 'success':
-        console.log('✅ Order created with ID:', orderData.order_id);
-
-        return res.status(200).json({
-          status: 'success',
-          order_id: orderData.order_id
-        });
+        console.log('✅ Pending order created with ID:', orderData.order_id);
+        break; // continue to Razorpay creation
 
       case 'item_not_found':
         return res.status(409).json({
@@ -459,6 +547,40 @@ export const codOrderCreation = async (req, res) => {
           status: 'price_change',
           message: orderData.message || 'Prices have changed',
           changed_items: orderData.changed_items
+        });
+
+      case "vendor_not_found":
+        return res.status(404).json({
+          status: "vendor_not_found",
+          message: orderData.message
+        });
+
+      // 🏪 VENDOR UNAVAILABLE
+      case "vendor_unavailable":
+        return res.status(409).json({
+          status: "vendor_unavailable",
+          message: orderData.message
+        });
+
+      // 📍 ADDRESS ISSUE
+      case "address_not_found":
+        return res.status(404).json({
+          status: "address_not_found",
+          message: orderData.message
+        });
+
+      // 💸 MIN ORDER FAIL
+      case "min_order_fail":
+        return res.status(400).json({
+          status: "min_order_fail",
+          message: orderData.message
+        });
+
+      // 🚫 COD NOT ALLOWED
+      case "cod_unavailable":
+        return res.status(409).json({
+          status: "cod_unavailable",
+          message: orderData.message
         });
 
 
