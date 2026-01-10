@@ -85,7 +85,7 @@ export const initilisePayment = async (req, res) => {
     // Safely handle array vs object
     const orderData = Array.isArray(pendingOrder) ? pendingOrder[0] : pendingOrder;
 
-
+   
     if (!orderData) {
       return res.status(500).json({ message: 'Pending order creation failed.' });
     }
@@ -98,22 +98,22 @@ export const initilisePayment = async (req, res) => {
       case 'item_not_found':
         return res.status(409).json({
           status: 'item_not_found',
-          message: data.message || 'Some items are unavailable.',
-          changed_items: data.v_unavailable_items
+          message: orderData.message || 'Some items are unavailable.',
+          changed_items: orderData.v_unavailable_items
         });
 
       case 'item_deactivated':
         return res.status(409).json({
           status: 'item_deactivated',
-          message: data.message || 'Some items had been deactivated.',
-          changed_items: data.deactivated_items
+          message: orderData.message || 'Some items had been deactivated.',
+          changed_items: orderData.deactivated_items
         });
 
       case 'price_changed':
         return res.status(409).json({
           status: 'price_change',
-          message: data.message || 'Prices have changed',
-          changed_items: data.changed_items
+          message: orderData.message || 'Prices have changed',
+          changed_items: orderData.changed_items
         });
 
       default:
