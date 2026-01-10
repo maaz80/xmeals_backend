@@ -97,7 +97,7 @@ export const initilisePayment = async (req, res) => {
 
       case 'item_not_found':
         return res.status(409).json({
-          status: 'v_unavailable_items',
+          status: 'item_not_found',
           message: data.message || 'Some items are unavailable.',
           changed_items: data.v_unavailable_items
         });
