@@ -61,9 +61,21 @@ export const initilisePayment = async (req, res) => {
       }
     }
 
+    const receipt = `rcpt_${crypto.randomBytes(12).toString('hex')}`;
+
+    const razorpayOrder = await razorpay.orders.create({
+      amount: Math.round(amount * 100),
+      currency,
+      receipt
+    });
+
+    const enrichedOrderPayload = {
+      ...orderPayload,
+      p_razorpay_order_id: razorpayOrder.id
+    };
 
     // ✅ Create pending order via RPC
-    const { data: pendingOrder, error: rpcError } = await supabase.rpc("create_order", orderPayload);
+    const { data: pendingOrder, error: rpcError } = await supabase.rpc("create_order", enrichedOrderPayload);
 
     if (rpcError) {
       console.error('❌ RPC error, order creation failed:', rpcError);
@@ -111,19 +123,13 @@ export const initilisePayment = async (req, res) => {
     // ✅ Log success, continue to Razorpay order creation
     // console.log('✅ Pending order created with ID:', orderData.order_id);
 
-    // ✅ Create Razorpay payment order
-    const receipt = `rcpt_${crypto.randomBytes(12).toString('hex')}`;
-    const options = {
-      amount: Math.round(amount * 100),
-      currency,
-      receipt,
+    // ✅ update Razorpay payment order
+    await razorpay.orders.edit(razorpayOrder.id, {
       notes: {
-        internal_order_id: orderData.order_id, // <--- Pass your DB ID here
+        internal_order_id: orderData.order_id
       }
+    });
 
-    };
-
-    const order = await razorpay.orders.create(options);
 
     const payloadHash = crypto.createHash('sha256', process.env.RAZORPAY_KEY_SECRET)
       .update(JSON.stringify(orderPayload))
@@ -131,15 +137,15 @@ export const initilisePayment = async (req, res) => {
 
     const paymentToken = jwt.sign({
       hash: payloadHash,
-      razorpay_order_id: order.id,
+      razorpay_order_id: razorpayOrder.id,
       user_id: user?.id
     }, process.env.JWT_SECRET, { expiresIn: '15m' });
 
     // ✅ Return Razorpay order + pending_order_id
     return res.status(200).json({
-      id: order.id,
-      amount: order.amount,
-      currency: order.currency,
+      id: razorpayOrder.id,
+      amount: razorpayOrder.amount,
+      currency: razorpayOrder.currency,
       token: paymentToken,
       pending_order_id: orderData.order_id
     });
@@ -267,17 +273,6 @@ export const finalisePayment = async (req, res) => {
         status: statusCode,
         message
       });
-    }
-
-    if (data?.status === 'already_failed' && data.refund_amount > 0) {
-      console.log("💰 Refund required for order:", data.order_id);
-
-      const refund = await razorpay.payments.refund(data.payment_id, {
-        amount: data.refund_amount * 100,
-        refund_to_source: true
-      });
-
-      console.log("✅ Refund processed from backend:", refund);
     }
 
     // STEP E: HANDLE BUSINESS LOGIC RESPONSES FROM THE FUNCTION

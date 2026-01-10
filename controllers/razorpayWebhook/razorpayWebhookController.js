@@ -57,27 +57,35 @@ export const razorpayWebhook = async (req, res) => {
                          client_price: ci.price
                     }));
 
+                    if (orderData.payment_gateway_order_id !== order.id) {
+                         console.error("❌ Razorpay order ID mismatch", {
+                              db: orderData.payment_gateway_order_id,
+                              webhook: order.id
+                         });
+                         return res.status(400).json({ success: false });
+                    }
+
                     orderPayload = {
                          p_order_id: internalOrderId,
                          p_payment_type: 'online',
-                         p_payment_id: payment?.id,
-                         p_razorpay_order_id: order?.id,
-                         p_paid_amount: payment?.amount,
-                         p_user_id: orderData?.u_id,
-                         p_address_id: orderData?.addr_id,
-                         p_cart_vendor_id: orderData?.v_id,
+                         p_payment_id: payment.id,
+                         p_razorpay_order_id: order.id,
+                         p_paid_amount: payment.amount,
+                         p_user_id: orderData.u_id,
+                         p_address_id: orderData.addr_id,
+                         p_cart_vendor_id: orderData.v_id,
                          p_cart_items: cartItemsForRpc,
-                         p_tax_collected: orderData?.tax_collected,
+                         p_tax_collected: orderData.tax_collected,
 
                     };
 
                     txnPayload = {
-                         p_order_id: order?.id,
-                         p_transaction_id: payment?.id,
+                         p_order_id: order.id,
+                         p_transaction_id: payment.id,
                          p_order_status: "order.paid",
                     };
 
-                    shouldFinalizeOrder = true;
+                    // shouldFinalizeOrder = true;
                     break;
                }
 
@@ -85,8 +93,8 @@ export const razorpayWebhook = async (req, res) => {
                     const payment = cuspayload?.payload?.payment?.entity;
                     const order = cuspayload?.payload?.order?.entity;
                     txnPayload = {
-                         p_order_id: order?.id,
-                         p_transaction_id: payment?.id,
+                         p_order_id: order.id,
+                         p_transaction_id: payment.id,
                          p_order_status: "payment.failed",
                     };
 
@@ -116,7 +124,7 @@ export const razorpayWebhook = async (req, res) => {
                return res.status(500).json({ success: false });
           }
           if (!txnError) {
-               console.log("✅ Transaction recorded:", txnPayload.p_transaction_id);
+               console.log("✅ Transaction recorded from webhook:", txnPayload.p_transaction_id);
           }
           /* ---------------- FINALIZE ORDER (ONLY order.paid) ---------------- */
           if (shouldFinalizeOrder) {
@@ -124,16 +132,16 @@ export const razorpayWebhook = async (req, res) => {
                     "verify_payment",
                     orderPayload
                );
-               if (data?.status === 'already_failed' && data.refund_amount > 0) {
-                    console.log("💰 Refund required for order:", data.order_id);
+               // if (data?.status === 'already_failed' && data.refund_amount > 0) {
+               //      console.log("💰 Refund required for order:", data.order_id);
 
-                    const refund = await razorpay.payments.refund(data.payment_id, {
-                         amount: data.refund_amount,
-                         refund_to_source: true
-                    });
+               //      const refund = await razorpay.payments.refund(data.payment_id, {
+               //           amount: data.refund_amount,
+               //           refund_to_source: true
+               //      });
 
-                    console.log("✅ Refund processed from webhook:", refund);
-               }
+               //      console.log("✅ Refund processed from webhook:", refund);
+               // }
 
                if (placeError) {
                     console.error("❌ Order finalize RPC failed from webhook:", placeError.message);
