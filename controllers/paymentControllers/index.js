@@ -85,7 +85,7 @@ export const initilisePayment = async (req, res) => {
     // Safely handle array vs object
     const orderData = Array.isArray(pendingOrder) ? pendingOrder[0] : pendingOrder;
 
-   
+
     if (!orderData) {
       return res.status(500).json({ message: 'Pending order creation failed.' });
     }
@@ -274,50 +274,50 @@ export const finalisePayment = async (req, res) => {
         message
       });
     }
-
+    const orderData = Array.isArray(data) ? data[0] : data;
     // STEP E: HANDLE BUSINESS LOGIC RESPONSES FROM THE FUNCTION
-    if (data) {
-      console.log("RPC Data from backend:", data);
+    if (orderData) {
+      console.log("RPC Data from backend:", orderData);
       console.log('Order status changed to Placed for order ID:', pending_order_id);
 
-      switch (data.status) {
+      switch (orderData.status) {
         case 'success':
-          return res.status(200).json(data);
+          return res.status(200).json(orderData);
 
         case 'already_processed':
           return res.status(200).json({
             message: "Order already finalized.",
-            order_id: data.order_id,
-            current_status: data.current_status || 'Placed'
+            order_id: orderData.order_id,
+            current_status: orderData.current_status || 'Placed'
           });
 
         case 'failed':
         case 'payment_failed':
-          return res.status(400).json(data);
+          return res.status(400).json(orderData);
 
         case 'item_not_found':
           return res.status(409).json({
             status: 'v_unavailable_items',
-            message: data.message || 'Some items are unavailable.',
-            changed_items: data.v_unavailable_items
+            message: orderData.message || 'Some items are unavailable.',
+            changed_items: orderData.v_unavailable_items
           });
 
         case 'item_deactivated':
           return res.status(409).json({
             status: 'item_deactivated',
-            message: data.message || 'Some items had been deactivated.',
-            changed_items: data.deactivated_items
+            message: orderData.message || 'Some items had been deactivated.',
+            changed_items: orderData.deactivated_items
           });
 
         case 'price_changed':
           return res.status(409).json({
             status: 'price_change',
-            message: data.message || 'Prices have changed',
-            changed_items: data.changed_items
+            message: orderData.message || 'Prices have changed',
+            changed_items: orderData.changed_items
           });
 
         default:
-          console.error('❓ Unexpected RPC status:', data.status);
+          console.error('❓ Unexpected RPC status:', orderData.status);
           return res.status(500).json({ message: 'Unknown RPC response received.' });
       }
     }
@@ -423,33 +423,41 @@ export const codOrderCreation = async (req, res) => {
         message
       });
     }
-
+    const orderData = Array.isArray(data) ? data[0] : data;
 
     // STEP E: HANDLE BUSINESS LOGIC RESPONSES FROM THE FUNCTION
-    if (!data) {
+    if (!orderData) {
       return res.status(500).json({ message: 'Order creation failed.' });
     }
 
-    switch (data.status) {
+    switch (orderData.status) {
       case 'success':
-        console.log('✅ Order created with ID:', data.order_id);
+        console.log('✅ Order created with ID:', orderData.order_id);
 
         return res.status(200).json({
           status: 'success',
-          order_id: data.order_id
+          order_id: orderData.order_id
         });
 
       case 'item_not_found':
-        return res.status(404).json(data);
+        return res.status(409).json({
+          status: 'item_not_found',
+          message: orderData.message || 'Some items are unavailable.',
+          changed_items: orderData.v_unavailable_items
+        });
 
       case 'item_deactivated':
-        return res.status(410).json(data);
+        return res.status(409).json({
+          status: 'item_deactivated',
+          message: orderData.message || 'Some items had been deactivated.',
+          changed_items: orderData.deactivated_items
+        });
 
       case 'price_changed':
         return res.status(409).json({
           status: 'price_change',
-          message: data.message || 'Prices have changed',
-          changed_items: data.changed_items
+          message: orderData.message || 'Prices have changed',
+          changed_items: orderData.changed_items
         });
 
 
