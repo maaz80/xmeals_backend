@@ -147,7 +147,110 @@ export const razorpayWebhook = async (req, res) => {
                     console.error("❌ Order finalize RPC failed from webhook:", placeError.message);
                     return res.status(500).json({ success: false });
                }
+               const orderData = Array.isArray(data) ? data[0] : data;
+               // STEP E: HANDLE BUSINESS LOGIC RESPONSES FROM THE FUNCTION
+               if (orderData) {
+                    console.log("RPC Data from backend:", orderData);
+                    console.log('Order status changed to Placed for order ID:', pending_order_id);
 
+                    switch (orderData.status) {
+
+                         // ✅ SUCCESS
+                         case "success":
+                              return res.status(200).json({
+                                   status: "success",
+                                   order_id: orderData.order_id
+                              });
+
+                         // 🔁 ALREADY PROCESSED
+                         case "already_processed":
+                              return res.status(200).json({
+                                   status: "already_processed",
+                                   order_id: orderData.order_id
+                              });
+
+                         // 🔁 ALREADY FAILED (refund flow)
+                         case "already_failed":
+                              return res.status(409).json({
+                                   status: "already_failed",
+                                   message: orderData.message,
+                                   order_id: orderData.order_id,
+                                   refund_amount: orderData.refund_amount
+                              });
+
+                         // 🏪 VENDOR NOT FOUND
+                         case "vendor_not_found":
+                              return res.status(404).json({
+                                   status: "vendor_not_found",
+                                   message: orderData.message
+                              });
+
+                         // 🏪 VENDOR UNAVAILABLE
+                         case "vendor_unavailable":
+                              return res.status(409).json({
+                                   status: "vendor_unavailable",
+                                   message: orderData.message
+                              });
+
+                         // 📍 ADDRESS NOT FOUND
+                         case "address_not_found":
+                              return res.status(404).json({
+                                   status: "address_not_found",
+                                   message: orderData.message
+                              });
+
+                         // 🚫 ITEM NOT FOUND
+                         case "item_not_found":
+                              return res.status(409).json({
+                                   status: "item_not_found",
+                                   message: orderData.message,
+                                   unavailable_items: orderData.unavailable_items
+                              });
+
+                         // 🚫 ITEM DEACTIVATED
+                         case "item_deactivated":
+                              return res.status(409).json({
+                                   status: "item_deactivated",
+                                   message: orderData.message,
+                                   deactivated_items: orderData.deactivated_items
+                              });
+
+                         // 🔄 PRICE CHANGED
+                         case "price_changed":
+                              return res.status(409).json({
+                                   status: "price_change",
+                                   message: orderData.message,
+                                   changed_items: orderData.changed_items
+                              });
+
+                         // 💸 MIN ORDER FAIL
+                         case "min_order_fail":
+                              return res.status(400).json({
+                                   status: "min_order_fail",
+                                   message: orderData.message
+                              });
+
+                         // 💳 PAYMENT FAILED
+                         case "payment_failed":
+                              return res.status(402).json({
+                                   status: "payment_failed",
+                                   reason: orderData.reason,
+                                   order_id: orderData.order_id,
+                                   expected_amount: orderData.expected_amount,
+                                   paid_amount: orderData.paid_amount,
+                                   difference_paise: orderData.difference_paise
+                              });
+
+                         // ❌ SAFETY NET
+                         default:
+                              console.error("❌ Unknown verify_payment RPC response:", orderData);
+                              return res.status(500).json({
+                                   status: "unknown_error",
+                                   message: "Unexpected response from payment verification."
+                              });
+                    }
+
+               }
                console.log("✅ Order finalized from webhook:", txnPayload.p_order_id);
           }
 
