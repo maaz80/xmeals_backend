@@ -282,8 +282,11 @@ export const finalisePayment = async (req, res) => {
 
    
 
-    // STEP 3: Fallback if no data and no error
-    return res.status(500).json({ message: 'Unexpected state: no RPC data and no error.' });
+    // after successful signature + payment fetch
+    return res.status(200).json({
+      status: "payment_verified",
+      message: "Payment verified, waiting for webhook finalization"
+    });
 
   } catch (err) {
     console.error('🔥 Fatal Error in /api/finalize-order:', err);
