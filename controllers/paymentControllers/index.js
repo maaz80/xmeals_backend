@@ -280,12 +280,142 @@ export const finalisePayment = async (req, res) => {
       p_tax_collected: orderPayload.p_tax_collected,
     };
 
-    // after successful signature + payment fetch
-    return res.status(200).json({
-      status: "payment_verified",
-      message: "Payment verified, waiting for webhook finalization"
-    });
+    // Assuming you have a Supabase service role client initialized
+    // const supabaseAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+    const { data, error } = await supabase.rpc("verify_payment", rpcParams);
 
+    // STEP D: HANDLE POSTGRES-LEVEL ERRORS (e.g., connection issue, RLS violation)
+    if (error) {
+      console.error("❌ Supabase RPC Error:", error);
+      console.error('Order status changed to failed for order ID:', pending_order_id);
+      // Default fallback
+      let statusCode = 400;
+      let message = error.message || "Order finalization failed";
+
+      // If message is JSON, parse it
+      if (typeof error.message === "string" && error.message.trim().startsWith("{")) {
+        try {
+          const parsed = JSON.parse(error.message);
+          statusCode = parsed.status || statusCode;
+          return res.status(statusCode).json(parsed);
+        } catch (_) {
+          return res.status(500).json({ message: "Failed to place order after payment." });
+        }
+      }
+
+      // Plain postgres exception
+      return res.status(statusCode).json({
+        status: statusCode,
+        message
+      });
+    }
+    const orderData = Array.isArray(data) ? data[0] : data;
+    // STEP E: HANDLE BUSINESS LOGIC RESPONSES FROM THE FUNCTION
+    if (orderData) {
+      console.log("RPC Data from backend:", orderData);
+      console.log('Order status changed to Placed for order ID:', pending_order_id);
+
+      switch (orderData.status) {
+
+        // ✅ SUCCESS
+        case "success":
+          return res.status(200).json({
+            status: "success",
+            order_id: orderData.order_id
+          });
+
+        // 🔁 ALREADY PROCESSED
+        case "already_processed":
+          return res.status(200).json({
+            status: "already_processed",
+            order_id: orderData.order_id
+          });
+
+        // 🔁 ALREADY FAILED (refund flow)
+        case "already_failed":
+          return res.status(409).json({
+            status: "already_failed",
+            message: orderData.message,
+            order_id: orderData.order_id,
+            refund_amount: orderData.refund_amount
+          });
+
+        // 🏪 VENDOR NOT FOUND
+        case "vendor_not_found":
+          return res.status(404).json({
+            status: "vendor_not_found",
+            message: orderData.message
+          });
+
+        // 🏪 VENDOR UNAVAILABLE
+        case "vendor_unavailable":
+          return res.status(409).json({
+            status: "vendor_unavailable",
+            message: orderData.message
+          });
+
+        // 📍 ADDRESS NOT FOUND
+        case "address_not_found":
+          return res.status(404).json({
+            status: "address_not_found",
+            message: orderData.message
+          });
+
+        // 🚫 ITEM NOT FOUND
+        case "item_not_found":
+          return res.status(409).json({
+            status: "item_not_found",
+            message: orderData.message,
+            unavailable_items: orderData.unavailable_items
+          });
+
+        // 🚫 ITEM DEACTIVATED
+        case "item_deactivated":
+          return res.status(409).json({
+            status: "item_deactivated",
+            message: orderData.message,
+            deactivated_items: orderData.deactivated_items
+          });
+
+        // 🔄 PRICE CHANGED
+        case "price_changed":
+          return res.status(409).json({
+            status: "price_change",
+            message: orderData.message,
+            changed_items: orderData.changed_items
+          });
+
+        // 💸 MIN ORDER FAIL
+        case "min_order_fail":
+          return res.status(400).json({
+            status: "min_order_fail",
+            message: orderData.message
+          });
+
+        // 💳 PAYMENT FAILED
+        case "payment_failed":
+          return res.status(402).json({
+            status: "payment_failed",
+            reason: orderData.reason,
+            order_id: orderData.order_id,
+            expected_amount: orderData.expected_amount,
+            paid_amount: orderData.paid_amount,
+            difference_paise: orderData.difference_paise
+          });
+
+        // ❌ SAFETY NET
+        default:
+          console.error("❌ Unknown verify_payment RPC response:", orderData);
+          return res.status(500).json({
+            status: "unknown_error",
+            message: "Unexpected response from payment verification."
+          });
+      }
+
+    }
+
+    // STEP 3: Fallback if no data and no error
+    return res.status(500).json({ message: 'Unexpected state: no RPC data and no error.' });
 
   } catch (err) {
     console.error('🔥 Fatal Error in /api/finalize-order:', err);
