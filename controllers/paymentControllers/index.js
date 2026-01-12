@@ -280,13 +280,12 @@ export const finalisePayment = async (req, res) => {
       p_tax_collected: orderPayload.p_tax_collected,
     };
 
-   
-
     // after successful signature + payment fetch
     return res.status(200).json({
       status: "payment_verified",
       message: "Payment verified, waiting for webhook finalization"
     });
+
 
   } catch (err) {
     console.error('🔥 Fatal Error in /api/finalize-order:', err);

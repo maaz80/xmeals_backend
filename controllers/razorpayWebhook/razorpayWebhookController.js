@@ -60,7 +60,6 @@ export const razorpayWebhook = async (req, res) => {
                          quantity: oi.quantity,
                          client_price: oi.final_price
                     }));
-console.log('cartitem',cartItemsForRpc);
 
 
                     if (orderData.payment_gateway_order_id !== order.id) {
@@ -153,11 +152,12 @@ console.log('cartitem',cartItemsForRpc);
                     console.error("❌ Order finalize RPC failed from webhook:", placeError.message);
                     return res.status(500).json({ success: false });
                }
+
                const orderData = Array.isArray(data) ? data[0] : data;
                // STEP E: HANDLE BUSINESS LOGIC RESPONSES FROM THE FUNCTION
                if (orderData) {
                     console.log("RPC Data from webhook:", orderData);
-                    console.log('Order status changed to Placed for order ID:', orderData.order_id);
+                    console.log('Order status changed to Placed for order ID webhook:', orderData.order_id);
 
                     switch (orderData.status) {
 
@@ -257,6 +257,8 @@ console.log('cartitem',cartItemsForRpc);
                     }
 
                }
+
+
                console.log("✅ Order finalized from webhook:", txnPayload.p_order_id);
           }
 
