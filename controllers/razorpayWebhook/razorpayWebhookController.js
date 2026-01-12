@@ -137,6 +137,7 @@ export const razorpayWebhook = async (req, res) => {
                     "verify_payment",
                     orderPayload
                );
+
                // if (data?.status === 'already_failed' && data.refund_amount > 0) {
                //      console.log("💰 Refund required for order:", data.order_id);
 
@@ -152,6 +153,8 @@ export const razorpayWebhook = async (req, res) => {
                     console.error("❌ Order finalize RPC failed from webhook:", placeError.message);
                     return res.status(500).json({ success: false });
                }
+               console.log('chla');
+               
 
                const orderData = Array.isArray(data) ? data[0] : data;
                // STEP E: HANDLE BUSINESS LOGIC RESPONSES FROM THE FUNCTION
