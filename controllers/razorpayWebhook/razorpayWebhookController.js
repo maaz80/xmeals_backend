@@ -85,7 +85,7 @@ export const razorpayWebhook = async (req, res) => {
                          p_order_status: "order.paid",
                     };
 
-                    // shouldFinalizeOrder = true;
+                    shouldFinalizeOrder = true;
                     break;
                }
 
