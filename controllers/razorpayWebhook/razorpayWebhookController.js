@@ -45,17 +45,23 @@ export const razorpayWebhook = async (req, res) => {
                          .eq('order_id', internalOrderId)
                          .single();
 
-                    const { data: cartItems } = await supabase
-                         .from('user_cart')
-                         .select('*')
-                         .eq('u_id', orderData.u_id)
-                         .eq('vendor_id', orderData.v_id);
+                    const { data: orderItems } = await supabase
+                         .from('order_item')
+                         .select('item_id, quantity, final_price')
+                         .eq('order_id', internalOrderId);
 
-                    const cartItemsForRpc = cartItems.map(ci => ({
-                         item_id: ci.item_id,
-                         quantity: ci.quantity,
-                         client_price: ci.price
+                    if (!orderItems || orderItems.length === 0) {
+                         console.error("❌ No order_items found for order:", internalOrderId);
+                         return res.status(400).json({ success: false });
+                    }
+
+                    const cartItemsForRpc = orderItems.map(oi => ({
+                         item_id: oi.item_id,
+                         quantity: oi.quantity,
+                         client_price: oi.final_price
                     }));
+console.log('cartitem',cartItemsForRpc);
+
 
                     if (orderData.payment_gateway_order_id !== order.id) {
                          console.error("❌ Razorpay order ID mismatch", {
@@ -150,8 +156,8 @@ export const razorpayWebhook = async (req, res) => {
                const orderData = Array.isArray(data) ? data[0] : data;
                // STEP E: HANDLE BUSINESS LOGIC RESPONSES FROM THE FUNCTION
                if (orderData) {
-                    console.log("RPC Data from backend:", orderData);
-                    console.log('Order status changed to Placed for order ID:', pending_order_id);
+                    console.log("RPC Data from webhook:", orderData);
+                    console.log('Order status changed to Placed for order ID:', orderData.order_id);
 
                     switch (orderData.status) {
 
