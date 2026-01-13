@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { supabase } from "../../config/supbase.js";
+import { finalizePaymentWithRetry } from "../../services/verifyPayment.core.js";
 
 export const razorpayWebhook = async (req, res) => {
      try {
@@ -90,7 +91,7 @@ export const razorpayWebhook = async (req, res) => {
                          p_order_status: "order.paid",
                     };
 
-                    // shouldFinalizeOrder = true;
+                    shouldFinalizeOrder = true;
                     break;
                }
 
@@ -133,56 +134,45 @@ export const razorpayWebhook = async (req, res) => {
           }
           /* ---------------- FINALIZE ORDER (ONLY order.paid) ---------------- */
           if (shouldFinalizeOrder) {
-               const { data, error: placeError } = await supabase.rpc(
-                    "verify_payment",
-                    orderPayload
-               );
+               const { data, error } = await verifyPaymentWithRetry({
+                    supabase,
+                    rpcParams: orderPayload
+               });
 
-               // if (data?.status === 'already_failed' && data.refund_amount > 0) {
-               //      console.log("💰 Refund required for order:", data.order_id);
-
-               //      const refund = await razorpay.payments.refund(data.payment_id, {
-               //           amount: data.refund_amount,
-               //           refund_to_source: true
-               //      });
-
-               //      console.log("✅ Refund processed from webhook:", refund);
-               // }
-
-               if (placeError) {
-                    console.error("❌ Order finalize RPC failed from webhook:", placeError.message);
-                    // ⏱️ Detect RPC timeout / transient failure
+               if (error) {
                     const isTimeout =
-                         placeError.code === "57014" ||
-                         placeError.message?.toLowerCase().includes("timeout");
+                         error.code === "57014" ||
+                         error.message?.includes("timeout");
 
                     if (isTimeout) {
-                         console.warn("⏱️ RPC timeout from webhook → asking Razorpay to retry");
-
-                         // 👈 THIS is the retry trigger
-                         // Razorpay will retry webhook automatically
                          return res.status(500).json({ success: false });
                     }
 
-                    // ❌ Non-timeout error → permanent failure
-                    // No point retrying webhook
-                    return res.status(200).json({ success: true });
-               }
-
-
-               const orderData = Array.isArray(data) ? data[0] : data;
-               // STEP E: HANDLE BUSINESS LOGIC RESPONSES FROM THE FUNCTION
-               if (
-                    orderData?.status === "success" ||
-                    orderData?.status === "already_processed"
-               ) {
-                    console.log("✅ Order finalized (or already done):", orderData.order_id);
-
-                    // 👈 IMPORTANT
-                    // 200 means Razorpay will NOT retry
                     return res.status(200).json({ success: true });
                }
           }
+
+          // const orderData = Array.isArray(data) ? data[0] : data;
+
+          // if (
+          //      orderData?.status === "success" ||
+          //      orderData?.status === "already_processed"
+          // ) {
+          //      console.log("✅ Order finalized:", orderData.order_id);
+          //      return res.status(200).json({ success: true });
+          // }
+
+          // if (data?.status === 'already_failed' && data.refund_amount > 0) {
+          //      console.log("💰 Refund required for order:", data.order_id);
+
+          //      const refund = await razorpay.payments.refund(data.payment_id, {
+          //           amount: data.refund_amount,
+          //           refund_to_source: true
+          //      });
+
+          //      console.log("✅ Refund processed from webhook:", refund);
+          // }
+
 
           return res.status(200).json({ success: true });
 

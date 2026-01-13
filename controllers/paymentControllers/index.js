@@ -3,6 +3,7 @@ import { supabase } from "../../config/supbase.js";
 import crypto from "crypto";
 import jwt from 'jsonwebtoken';
 import { decreaseWalletBalance } from "../walletControllers/walletController.js";
+import { verifyPaymentWithRetry } from "../../services/verifyPaymentWithRetry.service.js";
 
 export const initilisePayment = async (req, res) => {
   try {
@@ -280,47 +281,30 @@ export const finalisePayment = async (req, res) => {
       p_tax_collected: orderPayload.p_tax_collected,
     };
 
-    // Assuming you have a Supabase service role client initialized
-    // const supabaseAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
-    const { data, error } = await supabase.rpc("verify_payment", rpcParams);
+    // Service call 
+    const { data, error } = await verifyPaymentWithRetry({
+      supabase,
+      rpcParams
+    });
 
-    // STEP D: HANDLE POSTGRES-LEVEL ERRORS (e.g., connection issue, RLS violation)
     if (error) {
-      console.error("❌ Supabase RPC Error:", error);
-      console.error('Order status changed to failed for order ID:', pending_order_id);
-      // 1. Check for Postgres Timeout (Error code 57014) or Gateway Timeout
       const isTimeout =
-        error.code === '57014' ||
-        error.message?.includes('timeout') ||
-        error.status === 504;
+        error.code === "57014" ||
+        error.message?.includes("timeout");
+
       if (isTimeout) {
         return res.status(202).json({
-          status: "processing_timeout",
-          order_id: pending_order_id
+          status: "processing_timeout"
         });
       }
 
-      // Default fallback
-      let statusCode = 400;
-      let message = error.message || "Order finalization failed";
-
-      // If message is JSON, parse it
-      if (typeof error.message === "string" && error.message.trim().startsWith("{")) {
-        try {
-          const parsed = JSON.parse(error.message);
-          statusCode = parsed.status || statusCode;
-          return res.status(statusCode).json(parsed);
-        } catch (_) {
-          return res.status(500).json({ message: "Failed to place order after payment." });
-        }
-      }
-
-      // Plain postgres exception
-      return res.status(statusCode).json({
-        status: statusCode,
-        message
+      // 👇 tumhara existing error mapping
+      return res.status(400).json({
+        status: "failed",
+        message: error.message
       });
     }
+
     const orderData = Array.isArray(data) ? data[0] : data;
     // STEP E: HANDLE BUSINESS LOGIC RESPONSES FROM THE FUNCTION
     if (orderData) {
