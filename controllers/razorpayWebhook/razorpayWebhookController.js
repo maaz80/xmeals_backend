@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { supabase } from "../../config/supbase.js";
-import { finalizePaymentWithRetry } from "../../services/verifyPayment.core.js";
+import { verifyPaymentWithRetry } from "../../services/verifyPaymentWithRetry.service.js";
 
 export const razorpayWebhook = async (req, res) => {
      try {
