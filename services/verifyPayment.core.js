@@ -1,8 +1,13 @@
 export const verifyPaymentCore = async ({ supabase, rpcParams }) => {
+     const timeoutId = setTimeout(() => controller.abort(), 10000);
+
      const { data, error } = await supabase.rpc(
           "verify_payment",
-          rpcParams
+          rpcParams,
+          { signal: controller.signal }
      );
+
+     clearTimeout(timeoutId);
 
      if (error) {
           const isTimeout =
