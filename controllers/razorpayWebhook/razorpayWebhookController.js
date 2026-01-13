@@ -136,7 +136,7 @@ export const razorpayWebhook = async (req, res) => {
           /* Inside razorpayWebhook function where verifyPaymentWithRetry is called */
 
           if (shouldFinalizeOrder) {
-               console.log(`🔄 Attempting to finalize order ${internalOrderId} via Webhook...`);
+               console.log(`🔄 Attempting to finalize order ${orderPayload.p_order_id} via Webhook...`);
 
                const { data, error } = await verifyPaymentWithRetry({
                     supabase,
@@ -150,18 +150,18 @@ export const razorpayWebhook = async (req, res) => {
 
                     if (isTimeout) {
                          // ✅ BETTER LOGGING: Order ID ke saath print karo
-                         console.error(`⏳ [Webhook Timeout] Order: ${internalOrderId} timed out. Sending 500 to Razorpay.`);
+                         console.error(`⏳ [Webhook Timeout] Order: ${orderPayload.p_order_id} timed out. Sending 500 to Razorpay.`);
 
                          // 🚨 IMPORTANT: 500 bhejne se Razorpay automatically retry karega
                          return res.status(500).json({ success: false });
                     }
 
                     // Other errors (not timeout) -> 200 OK (Don't retry)
-                    console.error(`❌ [Webhook Error] Finalize failed for ${internalOrderId}:`, error.message);
+                    console.error(`❌ [Webhook Error] Finalize failed for ${orderPayload.p_order_id}:`, error.message);
                     return res.status(200).json({ success: true });
                }
 
-               console.log(`✅ [Webhook Success] Order ${internalOrderId} finalized successfully.`);
+               console.log(`✅ [Webhook Success] Order ${orderPayload.p_order_id} finalized successfully.`);
           }
 
           // const orderData = Array.isArray(data) ? data[0] : data;
