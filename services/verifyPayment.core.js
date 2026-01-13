@@ -1,18 +1,8 @@
 export const verifyPaymentCore = async ({ supabase, rpcParams }) => {
-     const controller = new AbortController();
-
-     const timeoutId = setTimeout(() => {
-          console.log("⏱️ ABORT FIRED");
-          controller.abort();
-     }, 3000);
-
      const { data, error } = await supabase.rpc(
           "verify_payment",
-          rpcParams,
-          { signal: controller.signal }
+          rpcParams
      );
-
-     clearTimeout(timeoutId);
 
      if (error) {
           const isTimeout =
