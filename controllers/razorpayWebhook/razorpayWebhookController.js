@@ -150,10 +150,10 @@ export const razorpayWebhook = async (req, res) => {
 
                     if (isTimeout) {
                          // ✅ BETTER LOGGING: Order ID ke saath print karo
-                         console.error(`⏳ [Webhook Timeout] Order: ${orderPayload.p_order_id} timed out. Sending 500 to Razorpay.`);
+                         console.error(`⏳ [Webhook Timeout] Order: ${orderPayload.p_order_id} timed out. Sending 200 to Razorpay.`);
 
                          // 🚨 IMPORTANT: 500 bhejne se Razorpay automatically retry karega
-                         return res.status(500).json({ success: false });
+                         return res.status(200).json({ success: true });
                     }
 
                     // Other errors (not timeout) -> 200 OK (Don't retry)
