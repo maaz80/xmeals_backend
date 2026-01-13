@@ -90,7 +90,7 @@ export const razorpayWebhook = async (req, res) => {
                          p_order_status: "order.paid",
                     };
 
-                    shouldFinalizeOrder = true;
+                    // shouldFinalizeOrder = true;
                     break;
                }
 
@@ -151,22 +151,38 @@ export const razorpayWebhook = async (req, res) => {
 
                if (placeError) {
                     console.error("❌ Order finalize RPC failed from webhook:", placeError.message);
-                    return res.status(500).json({ success: false });
+                    // ⏱️ Detect RPC timeout / transient failure
+                    const isTimeout =
+                         placeError.code === "57014" ||
+                         placeError.message?.toLowerCase().includes("timeout");
+
+                    if (isTimeout) {
+                         console.warn("⏱️ RPC timeout from webhook → asking Razorpay to retry");
+
+                         // 👈 THIS is the retry trigger
+                         // Razorpay will retry webhook automatically
+                         return res.status(500).json({ success: false });
+                    }
+
+                    // ❌ Non-timeout error → permanent failure
+                    // No point retrying webhook
+                    return res.status(200).json({ success: true });
                }
-               
+
 
                const orderData = Array.isArray(data) ? data[0] : data;
                // STEP E: HANDLE BUSINESS LOGIC RESPONSES FROM THE FUNCTION
-               if (orderData) {
-                    console.log("RPC Data from webhook:", orderData);
-                    console.log('Order status changed to Placed for order ID webhook:', orderData.order_id);
+               if (
+                    orderData?.status === "success" ||
+                    orderData?.status === "already_processed"
+               ) {
+                    console.log("✅ Order finalized (or already done):", orderData.order_id);
 
+                    // 👈 IMPORTANT
+                    // 200 means Razorpay will NOT retry
+                    return res.status(200).json({ success: true });
                }
-
-
-               console.log("✅ Order finalized from webhook:", txnPayload.p_order_id);
           }
-
 
           return res.status(200).json({ success: true });
 

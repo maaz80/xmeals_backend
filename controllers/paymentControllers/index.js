@@ -288,6 +288,23 @@ export const finalisePayment = async (req, res) => {
     if (error) {
       console.error("❌ Supabase RPC Error:", error);
       console.error('Order status changed to failed for order ID:', pending_order_id);
+      // 1. Check for Postgres Timeout (Error code 57014) or Gateway Timeout
+      const isTimeout =
+        error.code === '57014' ||
+        error.message?.includes('timeout') ||
+        error.status === 504;
+
+      if (isTimeout) {
+        console.warn("⏱️ RPC Timed Out! Webhook will handle finalization.");
+
+        // Yahan hum 202 (Accepted) ya ek special status bhejte hain
+        // Taaki frontend ko pata chale ki timeout hua hai par order Webhook se 'Placed' ho sakta hai
+        return res.status(202).json({
+          status: "processing_timeout",
+          message: "Payment processing is taking longer than expected. Please wait, we are confirming your order.",
+          order_id: pending_order_id // Ye ID listener re-attach karne ke kaam aayegi
+        });
+      }
       // Default fallback
       let statusCode = 400;
       let message = error.message || "Order finalization failed";
