@@ -309,7 +309,7 @@ export const finalisePayment = async (req, res) => {
     // STEP E: HANDLE BUSINESS LOGIC RESPONSES FROM THE FUNCTION
     if (orderData) {
       console.log("RPC Data from backend:", orderData);
-      console.log('Order status changed to Placed for order ID:', pending_order_id);
+      // console.log('Order status changed to Placed for order ID:', pending_order_id);
 
       switch (orderData.status) {
 

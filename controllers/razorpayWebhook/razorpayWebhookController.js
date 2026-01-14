@@ -3,8 +3,8 @@ import { supabase } from "../../config/supbase.js";
 import { verifyPaymentWithRetry } from "../../services/verifyPaymentWithRetry.service.js";
 
 export const razorpayWebhook = async (req, res) => {
-     /* ---------------- 1. Signature Verify (Must be Sync) ---------------- */
      try {
+          /* ---------------- Signature Verify ---------------- */
           const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
           const signature = req.headers["x-razorpay-signature"];
 
@@ -17,115 +17,108 @@ export const razorpayWebhook = async (req, res) => {
                console.error("❌ Invalid Razorpay signature");
                return res.status(400).json({ success: false });
           }
-     } catch (err) {
-          console.error("🔥 Signature Check Failed:", err);
-          return res.status(500).json({ success: false });
-     }
 
-     /* ---------------- 2. SEND 200 OK IMMEDIATELY ---------------- */
-     // Razorpay ko happy kar do taki wo retry na kare
-     res.status(200).json({ success: true });
+          /* ---------------- Parse Event ---------------- */
+          const cuspayload = JSON.parse(req.body.toString());
+          const event = cuspayload.event;
 
-     /* ---------------- 3. Process Logic in Background ---------------- */
-     // Hum 'await' nahi karenge jo response ko block kare, balki async function call karenge
-     processWebhookInBackground(req.body).catch(err => {
-          console.error("🔥 Background Webhook Processing Error:", err);
-          // Note: Kyunki humne 200 bhej diya hai, Razorpay retry nahi karega.
-          // Agar yahan error aata hai to aapko DB me log karna padega manual check ke liye.
-     });
-};
+          console.log("⚡ Razorpay event:", event);
 
-// Heavy Logic ko alag function me daal diya
-const processWebhookInBackground = async (reqBody) => {
-     const cuspayload = JSON.parse(reqBody.toString());
-     const event = cuspayload.event;
+          let txnPayload = null;
+          let orderPayload = null;
+          let shouldFinalizeOrder = false;
 
-     console.log("⚡ Razorpay event processing started:", event);
+          /* ---------------- Event Routing ---------------- */
+          switch (event) {
+               case "order.paid": {
+                    const order = cuspayload?.payload?.order?.entity;
+                    const payment = cuspayload?.payload?.payment?.entity;
+                    const internalOrderId = payment?.notes?.internal_order_id;
+                    if (!internalOrderId) {
+                         console.error("❌ internal_order_id missing");
+                         return res.status(400).json({ success: false });
+                    }
 
-     let txnPayload = null;
-     let orderPayload = null;
-     let shouldFinalizeOrder = false;
+                    // fetch order + cart + vendor details from DB
+                    const { data: orderData } = await supabase
+                         .from('orders')
+                         .select('*')
+                         .eq('order_id', internalOrderId)
+                         .single();
 
-     /* ---------------- Event Routing ---------------- */
-     switch (event) {
-          case "order.paid": {
-               const order = cuspayload?.payload?.order?.entity;
-               const payment = cuspayload?.payload?.payment?.entity;
-               const internalOrderId = payment?.notes?.internal_order_id;
+                    const { data: orderItems } = await supabase
+                         .from('order_item')
+                         .select('item_id, quantity, final_price')
+                         .eq('order_id', internalOrderId);
 
-               if (!internalOrderId) {
-                    console.error("❌ internal_order_id missing");
-                    return;
+                    if (!orderItems || orderItems.length === 0) {
+                         console.error("❌ No order_items found for order:", internalOrderId);
+                         return res.status(400).json({ success: false });
+                    }
+
+                    const cartItemsForRpc = orderItems.map(oi => ({
+                         item_id: oi.item_id,
+                         quantity: oi.quantity,
+                         client_price: oi.final_price
+                    }));
+
+
+                    if (orderData.payment_gateway_order_id !== order.id) {
+                         console.error("❌ Razorpay order ID mismatch", {
+                              db: orderData.payment_gateway_order_id,
+                              webhook: order.id
+                         });
+                         return res.status(400).json({ success: false });
+                    }
+
+                    orderPayload = {
+                         p_order_id: internalOrderId,
+                         p_payment_type: 'online',
+                         p_payment_id: payment.id,
+                         p_razorpay_order_id: order.id,
+                         p_paid_amount: payment.amount,
+                         p_user_id: orderData.u_id,
+                         p_address_id: orderData.addr_id,
+                         p_cart_vendor_id: orderData.v_id,
+                         p_cart_items: cartItemsForRpc,
+                         p_tax_collected: orderData.tax_collected,
+
+                    };
+
+                    txnPayload = {
+                         p_order_id: order.id,
+                         p_transaction_id: payment.id,
+                         p_order_status: "order.paid",
+                    };
+
+                    shouldFinalizeOrder = true;
+                    break;
                }
 
-               // fetch order + cart + vendor details from DB
-               const { data: orderData } = await supabase
-                    .from('orders')
-                    .select('*')
-                    .eq('order_id', internalOrderId)
-                    .single();
+               case "payment.failed": {
+                    const payment = cuspayload?.payload?.payment?.entity;
+                    const order = cuspayload?.payload?.order?.entity;
+                    txnPayload = {
+                         p_order_id: order.id,
+                         p_transaction_id: payment.id,
+                         p_order_status: "payment.failed",
+                    };
 
-               const { data: orderItems } = await supabase
-                    .from('order_item')
-                    .select('item_id, quantity, final_price')
-                    .eq('order_id', internalOrderId);
-
-               if (!orderItems || orderItems.length === 0) {
-                    console.error("❌ No order_items found for order:", internalOrderId);
-                    return;
+                    break;
                }
-              
-               const cartItemsForRpc = orderItems.map(oi => ({
-                    item_id: oi.item_id,
-                    quantity: oi.quantity,
-                    client_price: oi.final_price
-               }));
 
+               case "payment.captured": {
+                    console.log("ℹ️ Ignoring payment.captured");
+                    return res.status(200).json({ success: true });
+               }
 
-               // Check for duplicate processing handled by RPC or verifyPayment logic usually
-               // But good to check if already paid in DB here if needed
-
-               orderPayload = {
-                    p_order_id: internalOrderId,
-                    p_payment_type: 'online',
-                    p_payment_id: payment.id,
-                    p_razorpay_order_id: order.id,
-                    p_paid_amount: payment.amount,
-                    p_user_id: orderData.u_id,
-                    p_address_id: orderData.addr_id,
-                    p_cart_vendor_id: orderData.v_id,
-                    p_cart_items: cartItemsForRpc,
-                    p_tax_collected: orderData.tax_collected,
-               };
-
-               txnPayload = {
-                    p_order_id: order.id,
-                    p_transaction_id: payment.id,
-                    p_order_status: "order.paid",
-               };
-
-               shouldFinalizeOrder = true;
-               break;
+               default: {
+                    console.log("ℹ️ Ignored event:", event);
+                    return res.status(200).json({ success: true });
+               }
           }
 
-          case "payment.failed": {
-               const payment = cuspayload?.payload?.payment?.entity;
-               const order = cuspayload?.payload?.order?.entity;
-               txnPayload = {
-                    p_order_id: order.id,
-                    p_transaction_id: payment.id,
-                    p_order_status: "payment.failed",
-               };
-               break;
-          }
-
-          default:
-               console.log("ℹ️ Ignored event:", event);
-               return;
-     }
-
-     /* ---------------- TRANSACTION RPC ---------------- */
-     if (txnPayload) {
+          /* ---------------- TRANSACTION RPC (ALWAYS) ---------------- */
           const { error: txnError } = await supabase.rpc(
                "razorpay_transaction_record_rpc",
                txnPayload
@@ -133,27 +126,48 @@ const processWebhookInBackground = async (reqBody) => {
 
           if (txnError) {
                console.error("❌ Transaction RPC failed:", txnError.message);
-               // Critical: Log this to a separate error_table in DB because Razorpay won't retry
-               return;
+               // webhook retry needed
+               return res.status(500).json({ success: false });
           }
-          console.log("✅ Transaction recorded:", txnPayload.p_transaction_id);
-     }
-
-     /* ---------------- FINALIZE ORDER (Long Running Task) ---------------- */
-     if (shouldFinalizeOrder) {
-          console.log(`🔄 Finalizing order ${orderPayload.p_order_id} in background...`);
-
-          // Yeh function 1 min le sakta hai, koi issue nahi kyunki response ja chuka hai
-          const { data, error } = await verifyPaymentWithRetry({
-               supabase,
-               rpcParams: orderPayload
-          });
-
-          if (error) {
-               console.error(`❌ Background Finalize Failed for ${orderPayload.p_order_id}:`, error.message);
-               // Recommendation: Add logic here to alert Admin (Slack/Email) or add to a 'retry_queue' table
-          } else {
-               console.log(`✅ Background Finalize Success for ${orderPayload.p_order_id}`);
+          if (!txnError) {
+               console.log("✅ Transaction recorded from webhook:", txnPayload.p_transaction_id);
           }
+          /* ---------------- FINALIZE ORDER (ONLY order.paid) ---------------- */
+          /* Inside razorpayWebhook function where verifyPaymentWithRetry is called */
+
+          if (shouldFinalizeOrder) {
+               console.log(`🔄 Attempting to finalize order ${orderPayload.p_order_id} via Webhook...`);
+
+               const { data, error } = await verifyPaymentWithRetry({
+                    supabase,
+                    rpcParams: orderPayload
+               });
+
+               if (error) {
+                    const isTimeout =
+                         error.code === "57014" ||
+                         error.message?.includes("timeout");
+
+                    if (isTimeout) {
+                         // ✅ BETTER LOGGING: Order ID ke saath print karo
+                         console.error(`⏳ [Webhook Timeout] Order: ${orderPayload.p_order_id} timed out. Sending 200 to Razorpay.`);
+
+                         // 🚨 IMPORTANT: 500 bhejne se Razorpay automatically retry karega
+                         return res.status(500).json({ success: true });
+                    }
+
+                    // Other errors (not timeout) -> 200 OK (Don't retry)
+                    console.error(`❌ [Webhook Error] Finalize failed for ${orderPayload.p_order_id}:`, error.message);
+                    return res.status(200).json({ success: true });
+               }
+
+               console.log(`✅ [Webhook Success] Order ${orderPayload.p_order_id} finalized successfully.`);
+          }
+
+          return res.status(200).json({ success: true });
+
+     } catch (err) {
+          console.error("🔥 Webhook crash:", err);
+          return res.status(500).json({ success: false });
      }
 };
