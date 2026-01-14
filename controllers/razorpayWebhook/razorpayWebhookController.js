@@ -27,6 +27,13 @@ export const razorpayWebhook = async (req, res) => {
           let txnPayload = null;
           let orderPayload = null;
           let shouldFinalizeOrder = false;
+          let ackSent = false;
+
+          const safeRespond = (status, body) => {
+               if (ackSent) return;
+               ackSent = true;
+               res.status(status).json(body);
+          };
 
           /* ---------------- Event Routing ---------------- */
           switch (event) {
@@ -36,7 +43,7 @@ export const razorpayWebhook = async (req, res) => {
                     const internalOrderId = payment?.notes?.internal_order_id;
                     if (!internalOrderId) {
                          console.error("❌ internal_order_id missing");
-                         return res.status(400).json({ success: false });
+                         return safeRespond(400, { success: false });
                     }
 
                     // fetch order + cart + vendor details from DB
@@ -53,7 +60,7 @@ export const razorpayWebhook = async (req, res) => {
 
                     if (!orderItems || orderItems.length === 0) {
                          console.error("❌ No order_items found for order:", internalOrderId);
-                         return res.status(400).json({ success: false });
+                         return safeRespond(400, { success: false });
                     }
 
                     const cartItemsForRpc = orderItems.map(oi => ({
@@ -68,7 +75,7 @@ export const razorpayWebhook = async (req, res) => {
                               db: orderData.payment_gateway_order_id,
                               webhook: order.id
                          });
-                         return res.status(400).json({ success: false });
+                         return safeRespond(400, { success: false });
                     }
 
                     orderPayload = {
@@ -109,12 +116,12 @@ export const razorpayWebhook = async (req, res) => {
 
                case "payment.captured": {
                     console.log("ℹ️ Ignoring payment.captured");
-                    return res.status(200).json({ success: true });
+                    // return res.status(200).json({ success: true });
                }
 
                default: {
                     console.log("ℹ️ Ignored event:", event);
-                    return res.status(200).json({ success: true });
+                    // return res.status(200).json({ success: true });
                }
           }
 
@@ -127,7 +134,7 @@ export const razorpayWebhook = async (req, res) => {
           if (txnError) {
                console.error("❌ Transaction RPC failed:", txnError.message);
                // webhook retry needed
-               return res.status(500).json({ success: false });
+               // return res.status(500).json({ success: false });
           }
           if (!txnError) {
                console.log("✅ Transaction recorded from webhook:", txnPayload.p_transaction_id);
@@ -138,21 +145,15 @@ export const razorpayWebhook = async (req, res) => {
           if (shouldFinalizeOrder) {
                console.log(`🔄 Attempting to finalize order ${orderPayload.p_order_id} via Webhook...`);
 
-               let ackSent = false;
-
-               const send200Once = () => {
-                    if (ackSent) return;
-                    ackSent = true;
-                    res.status(200).json({ success: true });
-               };
+             
                const { data, error } = await verifyPaymentWithRetry({
                     supabase,
                     rpcParams: orderPayload,
                     fromWebhook: true,
                     onFirstTimeout: () => {
-                         // 🔥 FIRST timeout pe hi Razorpay ko ACK
-                         send200Once();
+                         safeRespond(200, { success: true });
                     }
+
                });
 
                if (error) {
@@ -165,12 +166,13 @@ export const razorpayWebhook = async (req, res) => {
                          console.error(`⏳ [Webhook Timeout] Order: ${orderPayload.p_order_id} timed out. Sending 200 to Razorpay.`);
 
                          // 🚨 IMPORTANT: 500 bhejne se Razorpay automatically retry karega
-                         return res.status(200).json({ success: true });
+                         return safeRespond(200, { success: true });
                     }
 
                     // Other errors (not timeout) -> 200 OK (Don't retry)
                     console.error(`❌ [Webhook Error] Finalize failed for ${orderPayload.p_order_id}:`, error.message);
-                    return res.status(200).json({ success: true });
+                   return  safeRespond(200, { success: true });
+
                }
 
                console.log(`✅ [Webhook Success] Order ${orderPayload.p_order_id} finalized successfully.`);
@@ -198,10 +200,10 @@ export const razorpayWebhook = async (req, res) => {
           // }
 
 
-          return res.status(200).json({ success: true });
+          return safeRespond(200, { success: true });
 
      } catch (err) {
           console.error("🔥 Webhook crash:", err);
-          return res.status(500).json({ success: false });
+          return safeRespond(500, { success: false });
      }
 };
