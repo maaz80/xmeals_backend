@@ -226,7 +226,7 @@ export const finalisePayment = async (req, res) => {
         return res.status(401).json({ message: 'Invalid or expired payment token.' });
       }
 
-      console.log("decoded token", decodedToken);
+      // console.log("decoded token", decodedToken);
       if (orderPayload?.p_user_id !== user?.id && decodedToken.user_id !== user?.id && orderPayload?.p_user_id !== decodedToken.user_id) {
         return res.status(403).json({ message: 'User is not authorized to finalize this payment.' });
       }
@@ -280,7 +280,6 @@ export const finalisePayment = async (req, res) => {
       p_cart_items: orderPayload.p_cart_items,
       p_tax_collected: orderPayload.p_tax_collected,
     };
-
     // Service call 
     const { data, error } = await verifyPaymentWithRetry({
       supabase,
@@ -309,7 +308,7 @@ export const finalisePayment = async (req, res) => {
     // STEP E: HANDLE BUSINESS LOGIC RESPONSES FROM THE FUNCTION
     if (orderData) {
       console.log("RPC Data from backend:", orderData);
-      // console.log('Order status changed to Placed for order ID:', pending_order_id);
+      console.log('Order status changed for order ID:', pending_order_id);
 
       switch (orderData.status) {
 

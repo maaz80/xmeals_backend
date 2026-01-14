@@ -10,6 +10,7 @@ export const verifyPaymentWithRetry = async ({
      for (let attempt = 0; attempt < delays.length; attempt++) {
           try {
                if (delays[attempt] > 0) {
+                    console.log(`⏳ Retry attempt ${attempt} after ${delays[attempt]}ms delay`);
                     await new Promise(r => setTimeout(r, delays[attempt]));
                }
 
