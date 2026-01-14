@@ -74,7 +74,10 @@ const processWebhookInBackground = async (reqBody) => {
                     console.error("❌ No order_items found for order:", internalOrderId);
                     return;
                }
-
+               if (orderData.payment_id !== payment.id) {
+                    console.error("❌ Payment ID mismatch for order:", internalOrderId);
+                    return;
+               }
                const cartItemsForRpc = orderItems.map(oi => ({
                     item_id: oi.item_id,
                     quantity: oi.quantity,
