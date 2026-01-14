@@ -117,7 +117,6 @@ export const razorpayWebhook = async (req, res) => {
                     return res.status(200).json({ success: true });
                }
           }
-          res.status(200).json({ success: true });
 
           /* ---------------- TRANSACTION RPC (ALWAYS) ---------------- */
           const { error: txnError } = await supabase.rpc(
@@ -138,10 +137,22 @@ export const razorpayWebhook = async (req, res) => {
 
           if (shouldFinalizeOrder) {
                console.log(`🔄 Attempting to finalize order ${orderPayload.p_order_id} via Webhook...`);
-               res.status(200).json({ success: true });
+
+               let ackSent = false;
+
+               const send200Once = () => {
+                    if (ackSent) return;
+                    ackSent = true;
+                    res.status(200).json({ success: true });
+               };
                const { data, error } = await verifyPaymentWithRetry({
                     supabase,
-                    rpcParams: orderPayload
+                    rpcParams: orderPayload,
+                    fromWebhook: true,
+                    onFirstTimeout: () => {
+                         // 🔥 FIRST timeout pe hi Razorpay ko ACK
+                         send200Once();
+                    }
                });
 
                if (error) {
@@ -154,12 +165,12 @@ export const razorpayWebhook = async (req, res) => {
                          console.error(`⏳ [Webhook Timeout] Order: ${orderPayload.p_order_id} timed out. Sending 200 to Razorpay.`);
 
                          // 🚨 IMPORTANT: 500 bhejne se Razorpay automatically retry karega
-                         // return res.status(200).json({ success: true });
+                         return res.status(200).json({ success: true });
                     }
 
                     // Other errors (not timeout) -> 200 OK (Don't retry)
                     console.error(`❌ [Webhook Error] Finalize failed for ${orderPayload.p_order_id}:`, error.message);
-                    // return res.status(200).json({ success: true });
+                    return res.status(200).json({ success: true });
                }
 
                console.log(`✅ [Webhook Success] Order ${orderPayload.p_order_id} finalized successfully.`);
@@ -187,7 +198,7 @@ export const razorpayWebhook = async (req, res) => {
           // }
 
 
-          // return res.status(200).json({ success: true });
+          return res.status(200).json({ success: true });
 
      } catch (err) {
           console.error("🔥 Webhook crash:", err);
