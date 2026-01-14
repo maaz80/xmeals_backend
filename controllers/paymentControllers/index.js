@@ -520,8 +520,11 @@ export const codOrderCreation = async (req, res) => {
 
     switch (orderData.status) {
       case 'success':
-        console.log('✅ Pending order created with ID:', orderData.order_id);
-        break; // continue to Razorpay creation
+        console.log('✅ Order created with ID:', orderData.order_id);
+        return res.status(200).json({
+          status: "success",
+          order_id: orderData.order_id
+        });
 
       case 'item_not_found':
         return res.status(409).json({
