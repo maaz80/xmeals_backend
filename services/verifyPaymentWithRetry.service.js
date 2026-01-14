@@ -2,10 +2,7 @@ import { verifyPaymentCore } from "../services/verifyPayment.core.js";
 
 export const verifyPaymentWithRetry = async ({
      supabase,
-     rpcParams,
-     fromWebhook = false,
-     onFirstTimeout // 👈 callback
-
+     rpcParams
 }) => {
      const delays = [0, 10000, 15000];
      let lastError;
@@ -23,16 +20,6 @@ export const verifyPaymentWithRetry = async ({
 
           } catch (err) {
                lastError = err;
-               const isTimeout =
-                    err.code === "57014" ||
-                    err.message?.toLowerCase().includes("timeout");
-
-               // 🔔 FIRST timeout + webhook call
-               if (fromWebhook && attempt === 0 && isTimeout) {
-                    if (typeof onFirstTimeout === "function") {
-                         onFirstTimeout(); // 👈 signal webhook
-                    }
-               }
           }
      }
 
