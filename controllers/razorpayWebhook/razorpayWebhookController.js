@@ -117,6 +117,7 @@ export const razorpayWebhook = async (req, res) => {
                     return res.status(200).json({ success: true });
                }
           }
+          res.status(200).json({ success: true });
 
           /* ---------------- TRANSACTION RPC (ALWAYS) ---------------- */
           const { error: txnError } = await supabase.rpc(
