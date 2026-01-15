@@ -161,7 +161,11 @@ export const razorpayWebhook = async (req, res) => {
                     return res.status(200).json({ success: true });
                }
 
-               console.log(` [Webhook] Order data response : ${orderData}`);
+              console.log(
+  "[Webhook] Order data response:",
+  JSON.stringify(orderData, null, 2)
+);
+
           }
 
           return res.status(200).json({ success: true });
