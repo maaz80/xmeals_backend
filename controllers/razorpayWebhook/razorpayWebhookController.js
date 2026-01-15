@@ -142,7 +142,7 @@ export const razorpayWebhook = async (req, res) => {
                     supabase,
                     rpcParams: orderPayload
                });
-
+               const orderData = Array.isArray(data) ? data[0] : data;
                if (error) {
                     const isTimeout =
                          error.code === "57014" ||
@@ -161,7 +161,7 @@ export const razorpayWebhook = async (req, res) => {
                     return res.status(200).json({ success: true });
                }
 
-               console.log(` [Webhook] Order data response : ${data}`);
+               console.log(` [Webhook] Order data response : ${orderData}`);
           }
 
           return res.status(200).json({ success: true });
